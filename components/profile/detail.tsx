@@ -313,7 +313,7 @@ function Applications({ s }: { s: Service }) {
                     {a.program ? " · " + a.program : ""}
                   </small>
                 </div>
-                <span className={"tag " + (a.admitted ? "green" : "")}>
+                <span className={"tag " + (a.admitted ? "positive" : "")}>
                   {a.admitted ? "正式合格" : "未登记合格"}
                 </span>
                 {a.final && <span className="tag amber">最终选择</span>}

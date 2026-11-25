@@ -90,7 +90,7 @@ export function CatalogPage() {
                       <td>{c.aliases.join("、") || "—"}</td>
                     )}
                     <td>
-                      <span className={"tag " + (c.active ? "green" : "")}>
+                      <span className={"tag " + (c.active ? "positive" : "")}>
                         {c.active ? "启用" : "停用"}
                       </span>
                     </td>
@@ -245,7 +245,7 @@ export function Accounts() {
                 <td>{a.username}</td>
                 <td>{a.role === "admin" ? "管理员" : "普通成员"}</td>
                 <td>
-                  <span className={"tag " + (a.banned ? "" : "green")}>
+                  <span className={"tag " + (a.banned ? "" : "positive")}>
                     {a.banned ? "停用" : "启用"}
                   </span>
                 </td>
