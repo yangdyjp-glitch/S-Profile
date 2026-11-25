@@ -8,15 +8,23 @@ import { createRailwayApp } from "../railway/server.mjs";
 export async function createRailwayTestRuntime() {
   const scratch = await mkdtempDisposable(join(tmpdir(), "sprofile-railway-"));
   const key = randomBytes(32).toString("hex");
+  const databaseUrl = process.env.SPROFILE_TEST_PG_URL;
+  if (databaseUrl) {
+    const target = new URL(databaseUrl);
+    if (target.hostname !== "127.0.0.1" || !target.pathname.startsWith("/sprofile_test_")) {
+      throw new Error("The PostgreSQL integration fixture requires a local test database.");
+    }
+  }
   const config = {
     directory: scratch.path,
     origin: "http://127.0.0.1",
     secret: randomBytes(48).toString("hex"),
     ownerDigest: createHash("sha256").update(key).digest("hex"),
+    databaseUrl: process.argv.includes("--cutover") ? undefined : databaseUrl,
   };
   let server, close, address;
   async function start() {
-    const runtime = createRailwayApp(config);
+    const runtime = await createRailwayApp(config);
     close = runtime.close;
     await new Promise((ready) => {
       server = serve({
@@ -32,7 +40,7 @@ export async function createRailwayTestRuntime() {
   }
   async function stop() {
     await new Promise((finish, reject) => server.close((error) => error ? reject(error) : finish()));
-    close();
+    await close();
   }
   await start();
   return {
@@ -43,6 +51,7 @@ export async function createRailwayTestRuntime() {
     },
     async restart() {
       await stop();
+      config.databaseUrl = databaseUrl;
       await start();
     },
     async dispose() {

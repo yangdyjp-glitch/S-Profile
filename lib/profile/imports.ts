@@ -44,7 +44,11 @@ import {
 } from "./validation";
 import { activeAdmission } from "./validation";
 
-const batchQuery = `SELECT i.*,count(s.id) total,coalesce(sum(s.state='pending'),0) pending,coalesce(sum(s.state='linked'),0) linked,coalesce(sum(s.state='source'),0) saved FROM imports i LEFT JOIN sources s ON i.id=s.batch_id`;
+const batchQuery = `SELECT i.*, count(s.id) total,
+  count(CASE WHEN s.state='pending' THEN 1 END) pending,
+  count(CASE WHEN s.state='linked' THEN 1 END) linked,
+  count(CASE WHEN s.state='source' THEN 1 END) saved
+  FROM imports i LEFT JOIN sources s ON i.id=s.batch_id`;
 export async function batches(db: D1Database) {
   return (
     await db
@@ -86,7 +90,7 @@ export async function upload(
     });
     await db
       .prepare(
-        "INSERT OR IGNORE INTO imports(id,name,actor,at,state,metadata,object_key) VALUES(?,?,?,?,?,?,?)",
+        "INSERT INTO imports(id,name,actor,at,state,metadata,object_key) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
       )
       .bind(key, name, actor.name, stamp(), "uploaded", "[]", objectKey)
       .run();
@@ -132,7 +136,7 @@ export async function prepare(db: D1Database, bucket: R2Bucket, key: string) {
     statements.push(
       db
         .prepare(
-          "INSERT OR IGNORE INTO sources(id,batch_id,sheet,row,phase,name,identity,raw,proposal,issues,state) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
+          "INSERT INTO sources(id,batch_id,sheet,row,phase,name,identity,raw,proposal,issues,state) VALUES(?,?,?,?,?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING",
         )
         .bind(
           r.id,

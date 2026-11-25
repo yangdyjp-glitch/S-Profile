@@ -17,7 +17,7 @@ import {
   upload,
 } from "./imports";
 import { exportData } from "./exports";
-import { all, commit, history, one, snapshot, type Input } from "./store";
+import { all, commit, history, isUniqueViolation, one, snapshot, type Input } from "./store";
 import { Problem } from "./validation";
 
 const json = (data: unknown, status = 200) =>
@@ -203,7 +203,7 @@ export async function api(
         e.status,
       );
     const message = String(e);
-    if (/UNIQUE constraint failed/.test(message))
+    if (isUniqueViolation(e))
       return json({ message: "名称或用户名已存在" }, 409);
     if (/version_guard/.test(message))
       return json({ message: "资料已更新，请重新核对" }, 409);

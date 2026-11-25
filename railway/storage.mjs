@@ -97,9 +97,13 @@ function fileBucket(directory) {
   };
 }
 
-export function openStorage(directory) {
+export async function openStorage(directory, databaseUrl) {
   const objects = resolve(directory, "objects");
   mkdirSync(objects, { recursive: true, mode: 0o700 });
+  if (databaseUrl) {
+    const { openPostgres } = await import("./postgres.mjs");
+    return { ...(await openPostgres(databaseUrl, directory)), BUCKET: fileBucket(objects) };
+  }
   const connection = new DatabaseSync(join(directory, "profile.sqlite"));
   try {
     connection.exec("PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON");
@@ -109,6 +113,7 @@ export function openStorage(directory) {
     throw error;
   }
   return {
+    backend: "sqlite",
     DB: {
       prepare(sql) {
         return new Statement(connection.prepare(sql));

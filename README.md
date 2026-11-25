@@ -41,8 +41,12 @@ npm run test:profile
 
 ### Railway
 
-Railway 从 GitHub 的 `main` 分支部署。`railway.toml` 配置生产构建、Node 服务和 `/healthz` 健康检查。生产环境使用 Node.js 24，域名的目标端口和 `PORT` 均为 `8787`。SQLite 数据库和导入的工作簿保存在挂载于 `/data` 的 Railway 持久卷中，独立于 Sites 的 D1 和 R2。
+Railway 从 GitHub 的 `main` 分支部署。`railway.toml` 配置生产构建、Node 服务和 `/healthz` 健康检查。生产环境使用 Node.js 24，域名的目标端口和 `PORT` 均为 `8787`。账号、档案、业务记录和导入索引存储在 Supabase PostgreSQL 的私有 `sprofile` 模式中。上传的 Excel 原件及较大的来源行保存在 Railway 的 `/data` 持久卷上。
+
+Railway 的 `DATABASE_URL` 服务变量使用 Supabase 的 Session pooler 连接串，端口为 `5432`。专用登录角色需要该模式的 `USAGE` 和 `CREATE` 权限。数据库客户端验证服务器主机名和证书链，信任的根证书取自 [Supabase 官方 CLI](https://github.com/supabase/cli/blob/develop/apps/cli/src/command-internal/supabase-ca-templates/prod-ca-2021.ts)。
+
+首次切换时，服务在一个 PostgreSQL 事务中建表并读取旧持久卷上的 SQLite 快照，逐批比对字段并核对各表行数。事务提交后记录迁移标记，后续重启直接使用 PostgreSQL。`/healthz` 的 `database` 字段显示当前使用的数据库。
 
 `BETTER_AUTH_SECRET` 保存于 Railway 的服务变量中。首次设置管理员时，通过私下交付的设置入口填写账号和密码。链接片段内的随机密钥与服务变量 `SPROFILE_SETUP_SHA256` 中的 SHA-256 摘要对应。首位管理员建立成功后，初始化入口自动关闭。
 
-可用 `npm run build:railway` 和 `npm run test:profile -- --railway` 在本地验证此部署方式。测试使用临时目录，并在重启服务后读取原工作簿和已有会话。
+构建后运行 `npm run test:profile -- --railway` 验证本地 SQLite 运行方式。安装 PostgreSQL 17 命令行工具后，`npm run test:postgres` 使用临时本机数据库分别验证全新 PostgreSQL 部署和 SQLite 切换，并在重启服务后读取原工作簿和已有会话。

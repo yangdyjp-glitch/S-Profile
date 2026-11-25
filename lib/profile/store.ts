@@ -170,6 +170,10 @@ export async function digest(data: ArrayBuffer | Uint8Array | string) {
     (v) => v.toString(16).padStart(2, "0"),
   ).join("");
 }
+export function isUniqueViolation(error: unknown) {
+  return (error as { code?: string } | null)?.code === "23505" ||
+    String(error).includes("UNIQUE constraint failed");
+}
 export async function commit(
   db: D1Database,
   actor: Account,
@@ -209,13 +213,13 @@ export async function commit(
     const msg = String(e);
     if (/version_guard|CHECK constraint failed/.test(msg))
       throw new Problem(409, "资料已更新，请核对最新版本后保存");
-    if (/UNIQUE constraint failed/.test(msg))
+    if (isUniqueViolation(e))
       throw new Problem(409, "已有同名记录，请选择已有档案或名册项");
     throw e;
   }
 }
 export const revisionSelect =
-  "SELECT seq,entity,entity_id AS entityId,student_id AS studentId,service_id AS serviceId,version,action,actor,at,before,after FROM revisions";
+  'SELECT seq,entity,entity_id AS "entityId",student_id AS "studentId",service_id AS "serviceId",version,action,actor,at,before,after FROM revisions';
 export async function history(
   db: D1Database,
   type: string,

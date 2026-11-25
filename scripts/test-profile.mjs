@@ -306,6 +306,11 @@ async function run() {
   const wb = new ExcelJS.Workbook();
   const sheet = wb.addWorksheet("进行中");
   sheet.getCell("A1").value = "学生姓名";
+  sheet.dataValidations.add("Q2:Q1048576", {
+    type: "list",
+    allowBlank: true,
+    formulae: ['"选项一,选项二"'],
+  });
   sheet.getCell("C1").value = "签单时间";
   sheet.getCell("R1").value = "2024-04";
   sheet.getCell("S1").value = "4月";
@@ -321,6 +326,7 @@ async function run() {
   pause.getCell("L2").value = "人员待核";
   pause.mergeCells("Q2:Q3");
   pause.getCell("Q2").value = "合并文字";
+  pause.mergeCells("M2:N2");
   const applying = wb.addWorksheet("出愿中（学生管理）");
   applying.getCell("A1").value = "姓名";
   applying.getCell("A2").value = "学校候选";

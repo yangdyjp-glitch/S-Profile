@@ -8,7 +8,7 @@ import { Hono } from "hono";
 import { api } from "../dist/railway/server/api.mjs";
 import { openStorage } from "./storage.mjs";
 
-export function createRailwayApp({ directory, origin, secret, ownerDigest }) {
+export async function createRailwayApp({ directory, origin, secret, ownerDigest, databaseUrl }) {
   if (!directory || !secret || secret.length < 32) {
     throw new Error("A persistent data directory and a session secret of at least 32 characters are required.");
   }
@@ -16,12 +16,12 @@ export function createRailwayApp({ directory, origin, secret, ownerDigest }) {
   const ownerHash = /^[0-9a-f]{64}$/i.test(ownerDigest || "")
     ? Buffer.from(ownerDigest, "hex")
     : null;
-  const storage = openStorage(directory);
+  const storage = await openStorage(directory, databaseUrl);
   const bindings = { DB: storage.DB, BUCKET: storage.BUCKET, BETTER_AUTH_SECRET: secret };
   const app = new Hono();
-  app.get("/healthz", (c) => {
-    storage.ready();
-    return c.json({ status: "ok" }, 200, { "Cache-Control": "no-store" });
+  app.get("/healthz", async (c) => {
+    await storage.ready();
+    return c.json({ status: "ok", database: storage.backend }, 200, { "Cache-Control": "no-store" });
   });
   app.all("/api/*", (c) => {
     const req = c.req.raw;
@@ -60,11 +60,15 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
   if (env.RAILWAY_ENVIRONMENT_ID && !mount) {
     throw new Error("Attach a Railway volume before starting the student service.");
   }
-  const { app, close } = createRailwayApp({
+  if (env.RAILWAY_ENVIRONMENT_ID && !env.DATABASE_URL) {
+    throw new Error("Configure DATABASE_URL before starting the Railway service.");
+  }
+  const { app, close } = await createRailwayApp({
     directory: mount ? join(mount, "s-profile") : env.SPROFILE_DATA_DIR,
     origin: env.SPROFILE_ORIGIN || (env.RAILWAY_PUBLIC_DOMAIN && "https://" + env.RAILWAY_PUBLIC_DOMAIN),
     secret: env.BETTER_AUTH_SECRET,
     ownerDigest: env.SPROFILE_SETUP_SHA256,
+    databaseUrl: env.DATABASE_URL,
   });
   const server = serve({
     fetch: app.fetch,

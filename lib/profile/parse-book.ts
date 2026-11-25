@@ -10,8 +10,10 @@ import type {
   SourceCell,
   RawRow,
 } from "./excel-model";
-const txt = (c: Cell) => {
+const txt = (c: Cell): string => {
+  if (c.isMerged && c.master.address !== c.address) return txt(c.master);
   const v = c.value;
+  if (v == null) return "";
   if (v instanceof Date)
     return SSF.format(c.numFmt || "yyyy-mm-dd", v, { date1904: false });
   const value = v && typeof v === "object" && "result" in v ? v.result : v;
@@ -274,7 +276,8 @@ function propose(
 }
 export async function parseBook(buffer: ArrayBuffer, batch: string) {
   const book = new ExcelJS.Workbook();
-  await book.xlsx.load(buffer);
+  // Whole-column dropdown rules can cover a million rows. The original file retains them.
+  await book.xlsx.load(buffer, { ignoreNodes: ["dataValidations"] });
   const rows: {
     id: string;
     sheet: string;
