@@ -72,9 +72,13 @@ function owner(request: Request, env: Cloudflare.Env) {
     email.toLowerCase() === env.SETUP_OWNER_EMAIL.toLowerCase()
   );
 }
-export async function setupAvailable(request: Request, env: Cloudflare.Env) {
+export async function setupAvailable(
+  request: Request,
+  env: Cloudflare.Env,
+  isOwner = owner(request, env),
+) {
   return (
-    owner(request, env) &&
+    isOwner &&
     !(await env.DB!.prepare('SELECT 1 FROM "user" LIMIT 1').first())
   );
 }
@@ -134,8 +138,9 @@ export async function bootstrap(
   auth: Auth,
   action: string,
   input: Input,
+  isOwner?: boolean,
 ) {
-  if (!(await setupAvailable(request, env)))
+  if (!(await setupAvailable(request, env, isOwner)))
     throw new Problem(403, "初始化入口已关闭或当前访问者无权初始化");
   const db = env.DB!;
   if (action === "ticket") {

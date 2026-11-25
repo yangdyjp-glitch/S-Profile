@@ -7,28 +7,43 @@ import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
 
-const root = resolve("dist/server");
-const files = (await readdir(root, { recursive: true })).filter(
-  (f) => f.endsWith(".js") && f !== "index.js",
-);
-const mf = new Miniflare({
-  modulesRoot: root,
-  modules: await Promise.all(
-    ["index.js", ...files].map(async (f) => ({
-      type: "ESModule",
-      path: join(root, f),
-      contents: await readFile(join(root, f), "utf8"),
-    })),
-  ),
-  compatibilityDate: "2026-05-15",
-  compatibilityFlags: ["nodejs_compat"],
-  d1Databases: ["DB"],
-  r2Buckets: ["BUCKET"],
-  bindings: {
-    BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
-    LOCAL_SETUP: "loopback",
-  },
-});
+async function createSitesRuntime() {
+  const root = resolve("dist/server");
+  const files = (await readdir(root, { recursive: true })).filter(
+    (f) => f.endsWith(".js") && f !== "index.js",
+  );
+  const mf = new Miniflare({
+    modulesRoot: root,
+    modules: await Promise.all(
+      ["index.js", ...files].map(async (f) => ({
+        type: "ESModule",
+        path: join(root, f),
+        contents: await readFile(join(root, f), "utf8"),
+      })),
+    ),
+    compatibilityDate: "2026-05-15",
+    compatibilityFlags: ["nodejs_compat"],
+    d1Databases: ["DB"],
+    r2Buckets: ["BUCKET"],
+    bindings: {
+      BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
+      LOCAL_SETUP: "loopback",
+    },
+  });
+  const db = await mf.getD1Database("DB");
+  for (const file of (await readdir("drizzle")).filter((s) => s.endsWith(".sql")).sort()) {
+    const sql = await readFile("drizzle/" + file, "utf8");
+    for (const stmt of sql.split("--> statement-breakpoint").map((s) => s.trim()).filter(Boolean)) {
+      await db.prepare(stmt).run();
+    }
+  }
+  return mf;
+}
+const railway = process.argv.includes("--railway");
+const runtime = railway
+  ? await (await import("./test-railway-runtime.mjs")).createRailwayTestRuntime()
+  : await createSitesRuntime();
+const clientDirectory = railway ? "dist/railway/client" : "dist/client";
 const origin = "http://127.0.0.1",
   pass = randomBytes(20).toString("hex");
 let cookie = "",
@@ -42,7 +57,7 @@ async function call(path, method = "GET", data, opts = {}) {
   };
   if (data !== undefined && !opts.raw)
     headers["content-type"] = "application/json";
-  const res = await mf.dispatchFetch(origin + "/api/" + path, {
+  const res = await runtime.dispatchFetch(origin + "/api/" + path, {
     method,
     headers,
     body: opts.raw
@@ -67,30 +82,34 @@ async function call(path, method = "GET", data, opts = {}) {
   return value;
 }
 async function run() {
-  const db = await mf.getD1Database("DB");
-  const migrations = (await readdir("drizzle"))
-    .filter((s) => /\.sql$/.test(s))
-    .sort();
-  for (const file of migrations) {
-    const sql = await readFile("drizzle/" + file, "utf8");
-    for (const stmt of sql
-      .split("--> statement-breakpoint")
-      .map((s) => s.trim())
-      .filter(Boolean))
-      await db.prepare(stmt).run();
+  const setup = railway ? { headers: { "X-S-Profile-Setup": runtime.key } } : {};
+  if (railway) {
+    const health = await runtime.dispatchFetch(origin + "/healthz");
+    assert.equal(health.status, 200);
+    assert.equal((await health.json()).status, "ok");
+    const page = await runtime.dispatchFetch(origin + "/");
+    assert.equal(page.status, 200);
+    const html = await page.text();
+    assert.match(html, /S-Profile · 学生服务管理/);
+    for (const [, path] of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) {
+      assert.equal((await runtime.dispatchFetch(origin + path)).status, 200);
+    }
+    assert.equal((await call("access")).canSetup, false);
+    await call("setup/ticket", "POST", {}, { status: 403 });
+    assert.equal((await call("access", "GET", undefined, setup)).canSetup, true);
   }
   await call("workspace", "GET", undefined, { status: 401 });
   await call("exports", "POST", { scope: "full" }, { status: 401 });
   await call("imports/example/original", "GET", undefined, { status: 401 });
   await call("auth/sign-up/email", "POST", {}, { status: 404 });
-  const { ticket } = await call("setup/ticket", "POST", {});
+  const { ticket } = await call("setup/ticket", "POST", {}, setup);
   await call("setup/complete", "POST", {
     ticket,
     name: "验收管理员",
     username: "qa.owner",
     password: pass,
-  });
-  await call("setup/ticket", "POST", {}, { status: 403 });
+  }, setup);
+  await call("setup/ticket", "POST", {}, { ...setup, status: 403 });
   await call(
     "auth/sign-in/username",
     "POST",
@@ -213,7 +232,7 @@ async function run() {
   const version = (await svc()).version,
     updates = await Promise.all(
       ["甲", "乙"].map((notes) =>
-        mf.dispatchFetch(origin + "/api/services/" + vid, {
+        runtime.dispatchFetch(origin + "/api/services/" + vid, {
           method: "PATCH",
           headers: {
             origin,
@@ -341,6 +360,7 @@ async function run() {
   assert.ok(confirm.studentId);
   const revisit = await call("imports/" + batch.id + "/review/" + raw.id);
   assert.equal(revisit.state, "linked");
+  if (railway) await runtime.restart();
   const original = await call(
     "imports/" + batch.id + "/original",
     "GET",
@@ -360,11 +380,11 @@ async function run() {
     filters: { phase: "progress", q: "年度记录" },
   });
   assert.equal(filtered.services.length, 2);
-  const frontendFiles = await readdir("dist/client", { recursive: true }),
+  const frontendFiles = await readdir(clientDirectory, { recursive: true }),
     workerName = frontendFiles.find((x) => /export\.worker-.*\.js$/.test(x));
   assert.ok(workerName);
   const worker = new Worker(
-    `const {parentPort}=require("node:worker_threads");globalThis.self=globalThis;globalThis.postMessage=(value)=>parentPort.postMessage(value);import(${JSON.stringify(pathToFileURL(resolve("dist/client", workerName)).href)}).then(()=>parentPort.on("message",data=>self.onmessage({data})));`,
+    `const {parentPort}=require("node:worker_threads");globalThis.self=globalThis;globalThis.postMessage=(value)=>parentPort.postMessage(value);import(${JSON.stringify(pathToFileURL(resolve(clientDirectory, workerName)).href)}).then(()=>parentPort.on("message",data=>self.onmessage({data})));`,
     { eval: true },
   );
   try {
@@ -432,5 +452,5 @@ async function run() {
 try {
   await run();
 } finally {
-  await mf.dispose();
+  await runtime.dispose();
 }

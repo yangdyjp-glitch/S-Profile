@@ -38,3 +38,11 @@ npm run test:profile
 沿用 `.openai/hosting.json` 中已登记的 Sites 项目、D1 绑定 `DB` 和私有 R2 绑定 `BUCKET`。部署时应用 `drizzle/` 内的结构迁移。托管环境需要单独设置 `BETTER_AUTH_SECRET` 和用于首次初始化的 `SETUP_OWNER_EMAIL`。后者匹配平台验证的站点所有者身份，仅用于签发一次性管理员初始化凭证。业务接口一律校验站内用户名密码登录建立的会话。
 
 站点访问范围在 Sites 托管层管理。团队如需直接用站内账号访问，托管层须允许访问登录页。在仅所有者可访问的站点，先由所有者完成首次初始化。`LOCAL_SETUP=loopback` 只供本机预览使用。
+
+### Railway
+
+Railway 从 GitHub 的 `main` 分支部署。`railway.toml` 配置生产构建、Node 服务和 `/healthz` 健康检查。生产环境使用 Node.js 24，域名的目标端口和 `PORT` 均为 `8787`。SQLite 数据库和导入的工作簿保存在挂载于 `/data` 的 Railway 持久卷中，独立于 Sites 的 D1 和 R2。
+
+`BETTER_AUTH_SECRET` 保存于 Railway 的服务变量中。首次设置管理员时，通过私下交付的设置入口填写账号和密码。链接片段内的随机密钥与服务变量 `SPROFILE_SETUP_SHA256` 中的 SHA-256 摘要对应。首位管理员建立成功后，初始化入口自动关闭。
+
+可用 `npm run build:railway` 和 `npm run test:profile -- --railway` 在本地验证此部署方式。测试使用临时目录，并在重启服务后读取原工作簿和已有会话。

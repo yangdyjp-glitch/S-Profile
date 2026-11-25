@@ -31,23 +31,29 @@ export class ApiError extends Error {
     super(message);
   }
 }
+let ownerSetupKey = "";
+export function setOwnerSetupKey(key: string) {
+  ownerSetupKey = key;
+}
 export async function request<T = any>(
   url: string,
   method = "GET",
   data?: unknown,
   key?: string,
 ): Promise<T> {
+  const headers = new Headers();
+  if (data !== undefined) {
+    headers.set("Content-Type", "application/json");
+    headers.set("Idempotency-Key", key || crypto.randomUUID());
+  }
+  if (ownerSetupKey && (url === "access" || url.startsWith("setup/"))) {
+    headers.set("X-S-Profile-Setup", ownerSetupKey);
+  }
   const r = await fetch("/api/" + url, {
     method,
     credentials: "same-origin",
     cache: "no-store",
-    headers:
-      data !== undefined
-        ? {
-            "Content-Type": "application/json",
-            "Idempotency-Key": key || crypto.randomUUID(),
-          }
-        : undefined,
+    headers,
     body: data !== undefined ? JSON.stringify(data) : undefined,
   });
   const v: any = await r.json().catch(() => ({ message: "服务器响应异常" }));
@@ -56,6 +62,7 @@ export async function request<T = any>(
       window.dispatchEvent(new Event("profile-session-expired"));
     throw new ApiError(v.message || "请求未完成", r.status, v.latest);
   }
+  if (url === "setup/complete") ownerSetupKey = "";
   return v as T;
 }
 export const SiteContext = createContext<{

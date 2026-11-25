@@ -29,7 +29,11 @@ const json = (data: unknown, status = 200) =>
       "X-Content-Type-Options": "nosniff",
     },
   });
-export async function api(request: Request, env: Cloudflare.Env) {
+export async function api(
+  request: Request,
+  env: Cloudflare.Env,
+  isSetupOwner?: boolean,
+) {
   try {
     const url = new URL(request.url),
       p = url.pathname
@@ -94,12 +98,14 @@ export async function api(request: Request, env: Cloudflare.Env) {
       throw new Problem(422, "提交内容无效");
     };
     if (section === "setup" && method === "POST")
-      return json(await bootstrap(request, env, auth, key, await body()));
+      return json(
+        await bootstrap(request, env, auth, key, await body(), isSetupOwner),
+      );
     const actor = await member(auth, request.headers);
     if (section === "access" && method === "GET")
       return json({
         user: actor,
-        canSetup: !actor && (await setupAvailable(request, env)),
+        canSetup: !actor && (await setupAvailable(request, env, isSetupOwner)),
       });
     if (!actor) throw new Problem(401, "请先使用内部账号登录");
     if (section === "workspace" && method === "GET")
