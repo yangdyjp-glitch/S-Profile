@@ -96,7 +96,7 @@ export function CatalogPage() {
                     </td>
                     <td>
                       <button
-                        className="link"
+                        className="row-action edit"
                         onClick={() =>
                           open(
                             "编辑" + catalogs[kind],
@@ -230,7 +230,7 @@ export function Accounts() {
       />
       <ErrorBox message={error} />
       <div className="panel table-scroll">
-        <table className="data-table">
+        <table className="data-table accounts-table">
           <thead>
             <tr>
               {["成员", "用户名", "权限", "状态", "操作"].map((v) => (
@@ -251,12 +251,12 @@ export function Accounts() {
                 </td>
                 <td>
                   <div className="actions">
-                    <button className="link" onClick={() => edit("reset", a)}>
+                    <button className="row-action edit" onClick={() => edit("reset", a)}>
                       重置密码
                     </button>
                     {a.id !== user.id && (
                       <button
-                        className="link muted"
+                        className={"row-action " + (a.banned ? "confirm" : "deactivate")}
                         onClick={() => edit(a.banned ? "enable" : "disable", a)}
                       >
                         {a.banned ? "启用" : "停用"}

@@ -1,12 +1,11 @@
 "use client";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  BookOpen,
-  ChevronDown,
+  CalendarDays,
   ChevronRight,
+  ChevronUp,
   ContactRound,
   FolderInput,
-  GraduationCap,
   KeyRound,
   LayoutDashboard,
   LogOut,
@@ -17,6 +16,7 @@ import {
 } from "lucide-react";
 import {
   emptyWorkspace,
+  tokyoDay,
   type Account,
   type Workspace,
 } from "../../lib/profile/model";
@@ -37,11 +37,11 @@ import {
 } from "./ui";
 import { Students, Workbench } from "./workbench";
 const nav = [
-  { key: "services", name: "服务工作台", icon: LayoutDashboard },
-  { key: "students", name: "学生档案", icon: UsersRound },
-  { key: "imports", name: "导入核对", icon: FolderInput },
-  { key: "catalogs", name: "业务名册", icon: ContactRound },
-  { key: "accounts", name: "账号管理", icon: ShieldCheck },
+  { key: "services", name: "服务工作台", en: "Services", icon: LayoutDashboard },
+  { key: "students", name: "学生档案", en: "Students", icon: UsersRound },
+  { key: "imports", name: "导入核对", en: "Imports", icon: FolderInput },
+  { key: "catalogs", name: "业务名册", en: "Catalogs", icon: ContactRound },
+  { key: "accounts", name: "账号管理", en: "Accounts", icon: ShieldCheck },
 ];
 export default function Site() {
   const [user, setUser] = useState<Account | null>(null),
@@ -55,6 +55,45 @@ export default function Site() {
     [toast, notice] = useState(""),
     [menu, setMenu] = useState(false),
     [profile, setProfile] = useState(false);
+  const accountMenu = useRef<HTMLDivElement>(null);
+  const navToggle = useRef<HTMLButtonElement>(null);
+  const navClose = useRef<HTMLButtonElement>(null);
+  const dismissMenu = useCallback(() => {
+    setMenu(false);
+    setProfile(false);
+    requestAnimationFrame(() => navToggle.current?.focus());
+  }, []);
+  useEffect(() => {
+    if (!menu) return;
+    navClose.current?.focus();
+    const mobile = window.matchMedia("(max-width: 780px)");
+    const resized = () => {
+      if (!mobile.matches) setMenu(false);
+    };
+    mobile.addEventListener("change", resized);
+    return () => mobile.removeEventListener("change", resized);
+  }, [menu]);
+  useEffect(() => {
+    if (!menu && !profile) return;
+    const outside = (e: PointerEvent) => {
+      if (!accountMenu.current?.contains(e.target as Node)) setProfile(false);
+    };
+    const escape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (profile) {
+        setProfile(false);
+        accountMenu.current?.querySelector("button")?.focus();
+      } else {
+        dismissMenu();
+      }
+    };
+    document.addEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
+  }, [menu, profile, dismissMenu]);
   const refresh = useCallback(async () => {
     const state = await request<Workspace>("workspace");
     setW(state);
@@ -115,7 +154,7 @@ export default function Site() {
   }, [toast]);
   function go(path: string) {
     location.hash = path;
-    setMenu(false);
+    if (menu) dismissMenu();
     setProfile(false);
   }
   async function logout() {
@@ -137,7 +176,9 @@ export default function Site() {
   const open = (title: string, node: React.ReactNode, wide = false) => {
     setView({ title, node, wide });
     setProfile(false);
+    setMenu(false);
   };
+  const today = tokyoDay();
   return (
     <SiteContext.Provider
       value={{ w, user, refresh, open, close: () => setView(null), notice, go }}
@@ -147,57 +188,80 @@ export default function Site() {
           <button
             className="side-cover"
             aria-label="关闭导航"
-            onClick={() => setMenu(false)}
+            tabIndex={-1}
+            onClick={dismissMenu}
           />
         )}
-        <aside className={"sidebar" + (menu ? " shown" : "")}>
+        <aside id="workspace-navigation" className={"sidebar" + (menu ? " shown" : "")}>
           <div className="side-brand">
-            <Brand />
+            <div>
+              <Brand />
+              <div className="side-caption">学生服务管理</div>
+            </div>
             <button
+              ref={navClose}
               className="icon mobile"
               aria-label="关闭导航"
-              onClick={() => setMenu(false)}
+              onClick={dismissMenu}
             >
               <X size={18} />
             </button>
           </div>
-          <div className="side-context">
-            <span className="square-icon">
-              <GraduationCap size={20} />
-            </span>
-            <span>
-              <b>学生服务管理</b>
-              <small>团队工作空间</small>
-            </span>
-          </div>
           <nav aria-label="主导航">
             {nav
               .filter((n) => n.key !== "accounts" || user.role === "admin")
-              .map((n, i) => (
+              .map((n) => (
                 <button
                   key={n.key}
                   className={
                     (n.key === active ? "active " : "") +
-                    (i === 2 ? "divider" : "")
+                    (n.key === "catalogs" ? "divider" : "")
                   }
+                  aria-current={n.key === active ? "page" : undefined}
                   onClick={() => go(n.key)}
                 >
                   <n.icon size={18} />
                   {n.name}
+                  <small lang="en" aria-hidden="true">{n.en}</small>
                 </button>
               ))}
           </nav>
-          <div className="side-foot">
-            <BookOpen size={15} />
-            <span>S-Profile</span>
+          <div className="account-menu" ref={accountMenu}>
+            <button
+              className="member"
+              onClick={() => setProfile(!profile)}
+              aria-expanded={profile}
+            >
+              <span className="avatar" aria-hidden="true">{Array.from(user.name)[0]}</span>
+              <span className="member-info">
+                <b>{user.name}</b>
+                <small>{user.role === "admin" ? "管理员" : "普通成员"} · {user.username}</small>
+              </span>
+              <ChevronUp size={16} />
+            </button>
+            {profile && (
+              <div className="menu-pop">
+                <button onClick={() => open("修改自己的密码", <PasswordEditor />)}>
+                  <KeyRound size={15} />
+                  修改密码
+                </button>
+                <button onClick={logout}>
+                  <LogOut size={15} />
+                  退出登录
+                </button>
+              </div>
+            )}
           </div>
         </aside>
-        <div className="shell-body">
+        <div className="shell-body" inert={menu}>
           <header className="shell-top">
             <div className="breadcrumbs">
               <button
+                ref={navToggle}
                 className="icon mobile"
                 aria-label="打开导航"
+                aria-controls="workspace-navigation"
+                aria-expanded={menu}
                 onClick={() => setMenu(true)}
               >
                 <Menu size={20} />
@@ -212,35 +276,10 @@ export default function Site() {
                 </>
               )}
             </div>
-            <div className="account-menu">
-              <button
-                className="member"
-                onClick={() => setProfile(!profile)}
-                aria-expanded={profile}
-              >
-                <span className="avatar">{user.name.slice(-2)}</span>
-                <span>{user.name}</span>
-                <ChevronDown size={14} />
-              </button>
-              {profile && (
-                <div className="menu-pop">
-                  <small>
-                    {user.role === "admin" ? "管理员" : "普通成员"} ·{" "}
-                    {user.username}
-                  </small>
-                  <button
-                    onClick={() => open("修改自己的密码", <PasswordEditor />)}
-                  >
-                    <KeyRound size={15} />
-                    修改密码
-                  </button>
-                  <button onClick={logout}>
-                    <LogOut size={15} />
-                    退出登录
-                  </button>
-                </div>
-              )}
-            </div>
+            <time className="shell-date small-info" dateTime={today}>
+              <CalendarDays size={15} />
+              {today.replaceAll("-", "/")}
+            </time>
           </header>
           <main className="workspace-main">
             <ErrorBox message={error} />

@@ -150,7 +150,7 @@ function Timeline({ st, kind }: { st: Student; kind: EntryKind }) {
                   {e.source && " · " + e.source.split(" · ")[0]}
                 </small>
                 <button
-                  className="link"
+                  className="row-action edit"
                   onClick={() =>
                     open(
                       "修改跟进记录",
@@ -161,7 +161,7 @@ function Timeline({ st, kind }: { st: Student; kind: EntryKind }) {
                   编辑
                 </button>
                 <button
-                  className="link muted"
+                  className="row-action deactivate"
                   onClick={() =>
                     open(
                       "作废跟进记录",
@@ -341,7 +341,7 @@ function Applications({ s }: { s: Service }) {
               />
               <div className="actions end">
                 <button
-                  className="link"
+                  className="row-action edit"
                   onClick={() =>
                     open("编辑学校申请", <SchoolEditor old={a} s={s} />, true)
                   }
@@ -349,7 +349,7 @@ function Applications({ s }: { s: Service }) {
                   编辑申请
                 </button>
                 <button
-                  className="link muted"
+                  className="row-action deactivate"
                   onClick={() =>
                     open("作废学校申请", <SchoolEditor old={a} s={s} voiding />)
                   }
@@ -560,7 +560,7 @@ export function ServiceDetail({ id }: { id: string }) {
                 title={roles[role] + "奖励"}
                 action={
                   <button
-                    className="link"
+                    className="row-action edit"
                     onClick={() =>
                       open(
                         roles[role] + "奖励结算",

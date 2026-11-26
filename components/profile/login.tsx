@@ -6,13 +6,13 @@ import {
   Clock3,
   Eye,
   EyeOff,
-  FolderOpen,
   KeyRound,
   LockKeyhole,
   LogIn,
   ShieldCheck,
   UserRound,
 } from "lucide-react";
+import { phases } from "../../lib/profile/model";
 import { Brand, ErrorBox, request } from "./ui";
 
 export function Login({
@@ -94,19 +94,13 @@ export function Login({
             <div className="photo-shade" />
           </div>
           <div className="feature-copy">
-            <div className="feature-symbol">
-              <FolderOpen size={23} />
-            </div>
             <h1>学生服务工作台</h1>
             <p>集中管理学生档案、学校申请与跟进记录。</p>
-            <div className="phase-track">
-              {["进行中", "暂停中", "出愿中", "已完成"].map((p, i) => (
-                <span key={p}>
-                  <i className={"track-dot d" + i} />
-                  {p}
-                </span>
+            <ul className="phase-track" aria-label="服务阶段">
+              {Object.values(phases).map((phase) => (
+                <li key={phase}>{phase}</li>
               ))}
-            </div>
+            </ul>
           </div>
         </div>
         <div className="login-form-wrap">
@@ -186,6 +180,7 @@ export function Login({
                   <button
                     type="button"
                     className="link"
+                    aria-expanded={help}
                     onClick={() => setHelp(!help)}
                   >
                     忘记密码？

@@ -78,11 +78,7 @@ export const useSite = () => useContext(SiteContext);
 export function Brand() {
   return (
     <div className="brand">
-      <span className="brand-mark">
-        <i />
-        <i />
-        <i />
-      </span>
+      <img className="brand-mark" src="/favicon.svg" width="38" height="38" alt="" />
       <span>S-Profile</span>
     </div>
   );

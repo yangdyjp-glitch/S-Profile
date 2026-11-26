@@ -2,7 +2,6 @@
 import { useState } from "react";
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
-  CalendarDays,
   CheckCheck,
   ChevronLeft,
   ChevronRight,
@@ -324,13 +323,9 @@ export function Workbench({
                 setPage(1);
               }}
             >
-              <span className="phase-label">
-                <span className="phase-icon">
-                  <Icon size={18} />
-                </span>
-                {phases[k]}
-              </span>
+              <span className="phase-label">{phases[k]}</span>
               <strong>{w.services.filter((s) => s.phase === k).length}</strong>
+              <span className="phase-icon"><Icon size={20} /></span>
             </button>
           );
         })}
@@ -340,10 +335,6 @@ export function Workbench({
           <h2>
             {phases[f.phase]}服务 <span>{rows.length}</span>
           </h2>
-          <span className="small-info">
-            <CalendarDays size={15} />
-            {tokyoDay().replaceAll("-", ".")}
-          </span>
         </div>
         <div className="toolbar">
           <SearchBox
@@ -353,6 +344,7 @@ export function Workbench({
           />
           <button
             className={"btn " + (more || nFilters ? "highlight" : "")}
+            aria-expanded={more}
             onClick={() => setMore(!more)}
           >
             <ListFilter size={16} />
@@ -399,7 +391,7 @@ export function Workbench({
         )}
         {rows.length ? (
           <div className="table-scroll">
-            <table className="data-table sticky">
+            <table className="data-table sticky services-table">
               <thead>
                 <tr>
                   {[
@@ -551,7 +543,7 @@ export function Students() {
         </div>
         {rows.length ? (
           <div className="table-scroll">
-            <table className="data-table sticky">
+            <table className="data-table sticky students-table">
               <thead>
                 <tr>
                   {[

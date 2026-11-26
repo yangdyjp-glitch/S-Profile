@@ -709,7 +709,7 @@ export function ImportPage() {
                       <td>{states[r.state]}</td>
                       <td>
                         <button
-                          className="link"
+                          className={"row-action " + (r.state === "pending" ? "edit" : "view")}
                           onClick={() =>
                             open(
                               r.state === "pending"
