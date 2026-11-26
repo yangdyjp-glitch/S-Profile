@@ -6,6 +6,7 @@ import { pathToFileURL } from "node:url";
 import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
+import { mergeWorkspace } from "../lib/profile/sync.ts";
 
 async function createSitesRuntime() {
   const root = resolve("dist/server");
@@ -89,16 +90,23 @@ async function run() {
     assert.equal((await health.json()).status, "ok");
     const page = await runtime.dispatchFetch(origin + "/");
     assert.equal(page.status, 200);
+    assert.equal(page.headers.get("cache-control"), "no-cache");
     const html = await page.text();
     assert.match(html, /S-Profile · 学生服务管理/);
     for (const [, path] of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) {
-      assert.equal((await runtime.dispatchFetch(origin + path)).status, 200);
+      const asset = await runtime.dispatchFetch(origin + path, { headers: { "Accept-Encoding": "br" } });
+      assert.equal(asset.status, 200);
+      assert.match(asset.headers.get("cache-control"), /immutable/);
+      assert.equal(asset.headers.get("content-encoding"), "br");
+      assert.deepEqual(Buffer.from(await asset.arrayBuffer()), await readFile(join(clientDirectory, path)));
     }
     assert.equal((await call("access")).canSetup, false);
     await call("setup/ticket", "POST", {}, { status: 403 });
     assert.equal((await call("access", "GET", undefined, setup)).canSetup, true);
   }
   await call("workspace", "GET", undefined, { status: 401 });
+  assert.equal((await call("access?workspace=1")).workspace, undefined);
+  await call("workspace?since=0", "GET", undefined, { status: 401 });
   await call("exports", "POST", { scope: "full" }, { status: 401 });
   await call("imports/example/original", "GET", undefined, { status: 401 });
   await call("auth/sign-up/email", "POST", {}, { status: 404 });
@@ -135,6 +143,14 @@ async function run() {
   );
   await call("admin/users", "GET", undefined, { status: 403 });
   const memberCookie = cookie;
+  const sessionWorkspace = await call("access?workspace=1");
+  assert.equal(sessionWorkspace.user.id, staff.id);
+  const initial = sessionWorkspace.workspace;
+  assert.equal(initial.full, true);
+  assert.equal(initial.data.catalogs.length, 34);
+  const syncHeaders = (cursor) => ({ "X-Workspace-Since": String(cursor) });
+  await call("workspace?since=-1", "GET", undefined, { status: 422 });
+  assert.equal((await call("workspace?since=9007199254740991")).full, true);
   const student = {
     name: "验收⭐️ 学生",
     orderMonth: "2025-11",
@@ -159,6 +175,11 @@ async function run() {
     payload = { student, service };
   const created = await call("services", "POST", payload, { key });
   assert.deepEqual(await call("services", "POST", payload, { key }), created);
+  const replay = await call("services", "POST", payload, { key, headers: syncHeaders(initial.cursor) });
+  assert.equal(replay.workspace.full, false);
+  assert.equal(replay.workspace.data.students[0].id, created.studentId);
+  assert.equal(replay.workspace.data.services[0].id, created.serviceId);
+  await call("services", "POST", { ...payload, reason: "变更请求" }, { key, status: 409 });
   const sid = created.studentId,
     vid = created.id;
   await call(
@@ -239,13 +260,21 @@ async function run() {
             cookie,
             "Content-Type": "application/json",
             "Idempotency-Key": randomUUID(),
+            ...syncHeaders(replay.workspace.cursor),
           },
           body: JSON.stringify({ notes, expectedVersion: version }),
         }),
       ),
     );
   assert.deepEqual(updates.map((x) => x.status).sort(), [200, 409]);
-  for (const r of updates) await r.arrayBuffer();
+  const saved = await updates.find((r) => r.ok).json();
+  await updates.find((r) => !r.ok).arrayBuffer();
+  assert.equal(saved.workspace.data.services.length, 1);
+  assert.equal(saved.workspace.data.services[0].version, version + 1);
+  assert.equal(saved.workspace.data.applications.length, 2);
+  const unchanged = await call("workspace?since=" + saved.workspace.cursor);
+  assert.equal(unchanged.full, false);
+  assert.ok(Object.values(unchanged.data).every((records) => records.length === 0));
   assert.equal((await svc()).version, version + 1);
   await act("close", { kind: "admission" });
   await call("students/" + sid, "PATCH", {
@@ -406,6 +435,14 @@ async function run() {
     proposal: { schools: [{ name: "合大", project: liveProject.name, submitted: true }] },
   });
   assert.equal((await call("services/" + imported.serviceId + "/applications"))[0].school, replacement.id);
+  const later = await call("workspace?since=" + replay.workspace.cursor);
+  const merged = mergeWorkspace(mergeWorkspace(initial.data, replay.workspace), later);
+  const current = await call("workspace");
+  for (const table of Object.keys(current)) {
+    const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
+    assert.deepEqual(byId(merged[table]), byId(current[table]), "synchronized " + table);
+  }
+  assert.deepEqual(mergeWorkspace(merged, replay.workspace), merged, "overlapping changes cannot roll back data");
   if (railway) await runtime.restart();
   const original = await call(
     "imports/" + batch.id + "/original",

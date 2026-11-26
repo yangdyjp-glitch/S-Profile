@@ -18,18 +18,30 @@ import {
 } from "./imports";
 import { exportData } from "./exports";
 import type { Catalog } from "./model";
-import { all, catalogItem, commit, history, isUniqueViolation, one, snapshot, type Input } from "./store";
+import { all, catalogItem, commit, history, isUniqueViolation, one, snapshot, workspaceUpdate, type Input } from "./store";
 import { Problem } from "./validation";
 
-const json = (data: unknown, status = 200) =>
-  Response.json(data, {
+const encoder = new TextEncoder();
+function json(data: unknown, status = 200) {
+  const bytes = encoder.encode(JSON.stringify(data));
+  return new Response(bytes, {
     status,
     headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Content-Length": String(bytes.byteLength),
       "Cache-Control": "private, no-store",
       Vary: "Cookie",
       "X-Content-Type-Options": "nosniff",
     },
   });
+}
+function cursorValue(raw: string | null) {
+  if (raw === null) return null;
+  const cursor = Number(raw);
+  if (!/^\d+$/.test(raw) || !Number.isSafeInteger(cursor))
+    throw new Problem(422, "资料同步位置无效，请刷新页面");
+  return cursor;
+}
 export async function api(
   request: Request,
   env: Cloudflare.Env,
@@ -107,10 +119,15 @@ export async function api(
       return json({
         user: actor,
         canSetup: !actor && (await setupAvailable(request, env, isSetupOwner)),
+        ...(actor && url.searchParams.get("workspace") === "1"
+          ? { workspace: await workspaceUpdate(db, null) } : {}),
       });
     if (!actor) throw new Problem(401, "请先使用内部账号登录");
-    if (section === "workspace" && method === "GET")
-      return json(await snapshot(db));
+    if (section === "workspace" && method === "GET") {
+      const since = cursorValue(url.searchParams.get("since"));
+      return json(since !== null || url.searchParams.has("sync")
+        ? await workspaceUpdate(db, since) : await snapshot(db));
+    }
     if (section === "admin" && key === "users")
       return json(
         await accountAdmin(
@@ -165,6 +182,7 @@ export async function api(
             url.pathname,
             input,
             () => resolve(db, env.BUCKET!, actor, key, input),
+            cursorValue(request.headers.get("x-workspace-since")),
           ),
         );
       }
@@ -198,6 +216,7 @@ export async function api(
         method + " " + url.pathname,
         input,
         () => business(db, actor, method, p, input),
+        cursorValue(request.headers.get("x-workspace-since")),
       ),
     );
   } catch (e) {

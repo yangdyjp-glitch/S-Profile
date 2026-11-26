@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { catalogs, type Account, type Catalog, type Kind } from "../../lib/profile/model";
 import { CatalogEditor } from "./editors";
@@ -21,9 +21,9 @@ function DeleteCatalog({ item }: { item: Catalog }) {
     <FormShell
       submit="确认删除"
       successMessage="名册项已删除"
-      save={async (_, key) => {
+      save={async (_, key, write) => {
         try {
-          return await request(
+          return await write(
             "catalogs/" + item.kind + "/" + item.id,
             "DELETE",
             { expectedVersion: item.version },
@@ -231,16 +231,19 @@ function UserEditor({
   );
 }
 export function Accounts() {
-  const { open, user, w } = useSite(),
+  const { open, user } = useSite(),
     [rows, setRows] = useState<Account[]>([]),
     [error, setError] = useState("");
-  const load = () =>
+  const load = useCallback(() =>
     request<Account[]>("admin/users")
       .then(setRows)
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message)), []);
   useEffect(() => {
-    if (user.role === "admin") void load();
-  }, [user.role, w]);
+    if (user.role !== "admin") return;
+    void load();
+    window.addEventListener("focus", load);
+    return () => window.removeEventListener("focus", load);
+  }, [user.role, load]);
   if (user.role !== "admin") return <Empty title="账号管理仅向管理员开放" />;
   const edit = (action: string, account?: Account) =>
     open(

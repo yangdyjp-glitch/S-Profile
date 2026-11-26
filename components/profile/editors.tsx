@@ -77,8 +77,8 @@ export function StudentEditor({ old }: { old?: Student }) {
           ? [{ path: "students/" + old.id, row: old, key: "expectedVersion" }]
           : []
       }
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           old ? "students/" + old.id : "students",
           old ? "PATCH" : "POST",
           {
@@ -252,9 +252,9 @@ export function ServiceEditor({
       after={(r) => {
         if (!old) go("service/" + r.id);
       }}
-      save={(vs, key) =>
+      save={(vs, key, write) =>
         old
-          ? request(
+          ? write(
               "services/" + old.id,
               "PATCH",
               {
@@ -264,7 +264,7 @@ export function ServiceEditor({
               },
               key,
             )
-          : request(
+          : write(
               "services",
               "POST",
               {
@@ -364,8 +364,8 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
     <FormShell
       submit={submit[action]}
       sources={[{ path: "services/" + s.id, row: s, key: "expectedVersion" }]}
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           "services/" + s.id + "/actions/" + action,
           "POST",
           { ...b.v, expectedVersion: s.version, ...vs },
@@ -441,8 +441,8 @@ export function SchoolEditor({
             ]
           : []),
       ]}
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           old
             ? "applications/" + old.id + (voiding ? "/void" : "")
             : "services/" + s.id + "/applications",
@@ -490,8 +490,8 @@ export function EntryEditor({
           ? [{ path: "entries/" + old.id, row: old, key: "expectedVersion" }]
           : []
       }
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           old
             ? "entries/" + old.id + (voiding ? "/void" : "")
             : "students/" + studentId + "/entries",
@@ -549,8 +549,8 @@ export function RewardEditor({
   return (
     <FormShell
       sources={[{ path: "services/" + s.id, row: s, key: "expectedVersion" }]}
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           "services/" + s.id + "/rewards/" + role,
           "PUT",
           { ...b.v, expectedVersion: s.version, ...vs },
@@ -580,8 +580,8 @@ export function CatalogEditor({ kind, old }: { kind: Kind; old?: Catalog }) {
   });
   return (
     <FormShell
-      save={(_, key) =>
-        request(
+      save={(_, key, write) =>
+        write(
           "catalogs/" + kind + (old ? "/" + old.id : ""),
           old ? "PATCH" : "POST",
           {

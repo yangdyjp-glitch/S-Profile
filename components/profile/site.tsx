@@ -21,6 +21,7 @@ import {
   type Workspace,
 } from "../../lib/profile/model";
 import { defaultFilters, type Filters } from "../../lib/profile/list";
+import { mergeWorkspace, type WorkspaceUpdate } from "../../lib/profile/sync";
 import { Accounts, CatalogPage } from "./admin";
 import { ServiceDetail, StudentDetail } from "./detail";
 import { PasswordEditor } from "./editors";
@@ -34,6 +35,7 @@ import {
   request,
   SiteContext,
   type View,
+  type WorkspaceWrite,
 } from "./ui";
 import { Students, Workbench } from "./workbench";
 const nav = [
@@ -48,6 +50,7 @@ export default function Site() {
     [canSetup, setCan] = useState(false),
     [w, setW] = useState<Workspace>(emptyWorkspace),
     [loaded, setLoaded] = useState(false),
+    [checking, setChecking] = useState(true),
     [error, setError] = useState("");
   const [route, setRoute] = useState("services"),
     [filters, setFilters] = useState<Filters>(defaultFilters),
@@ -94,12 +97,52 @@ export default function Site() {
       document.removeEventListener("keydown", escape);
     };
   }, [menu, profile, dismissMenu]);
-  const refresh = useCallback(async () => {
-    const state = await request<Workspace>("workspace");
-    setW(state);
+  const cursor = useRef<number | null>(null);
+  const session = useRef(0);
+  const refreshing = useRef<Promise<void> | null>(null);
+  const apply = useCallback((update: WorkspaceUpdate, base: number | null, generation: number) => {
+    if (session.current !== generation) return;
+    // A delayed focus request must not replace a newer edit or another user's workspace.
+    const current = cursor.current;
+    // A full response to the current cursor can also signal a restored database.
+    const reset = update.full && current !== null && base === current && update.cursor < current;
+    if (current !== null && update.cursor <= current && !reset) return;
+    cursor.current = update.cursor;
+    setW((current) => mergeWorkspace(current, update));
     setLoaded(true);
   }, []);
+  const refresh = useCallback((): Promise<void> => {
+    if (refreshing.current) return refreshing.current;
+    const base = cursor.current, generation = session.current;
+    const path = base === null ? "workspace?sync=1" : "workspace?since=" + base;
+    const task = request<WorkspaceUpdate | Workspace>(path)
+      .then((update) => {
+        if (session.current !== generation) return;
+        if ("cursor" in update) apply(update, base, generation);
+        else {
+          setW(update);
+          setLoaded(true);
+        }
+      })
+      .finally(() => {
+        if (refreshing.current === task) refreshing.current = null;
+      });
+    refreshing.current = task;
+    return task;
+  }, [apply]);
+  const write: WorkspaceWrite = useCallback(async (path, method, data, key) => {
+    const base = cursor.current, generation = session.current;
+    const result = await request(path, method, data, key, base);
+    if (generation !== session.current) throw new Error("登录状态已变更，请重新打开资料");
+    if (result.workspace) apply(result.workspace, base, generation);
+    else await refresh();
+    return result;
+  }, [apply, refresh]);
   const clear = useCallback(() => {
+    session.current++;
+    cursor.current = null;
+    refreshing.current = null;
+    setChecking(false);
     setUser(null);
     setW(emptyWorkspace);
     setLoaded(false);
@@ -110,18 +153,21 @@ export default function Site() {
     setFilters(defaultFilters);
   }, []);
   const access = useCallback(async () => {
+    const generation = session.current;
     setError("");
     try {
-      const a = await request<{ user: Account | null; canSetup: boolean }>(
-        "access",
-      );
+      const a = await request<{ user: Account | null; canSetup: boolean; workspace?: WorkspaceUpdate }>("access?workspace=1");
+      if (session.current !== generation) return;
       setCan(a.canSetup);
       setUser(a.user);
-      if (a.user) await refresh();
+      if (a.workspace) apply(a.workspace, null, generation);
+      else if (a.user) await refresh();
     } catch (e) {
-      setError((e as Error).message);
+      if (session.current === generation) setError((e as Error).message);
+    } finally {
+      if (session.current === generation) setChecking(false);
     }
-  }, [refresh]);
+  }, [refresh, apply]);
   useEffect(() => {
     void access();
     const hash = () => {
@@ -167,6 +213,7 @@ export default function Site() {
       setError((e as Error).message);
     }
   }
+  if (checking && !user) return <Empty title="正在打开工作台" />;
   if (!user)
     return <Login canSetup={canSetup} refresh={access} accessError={error} />;
   const [page, id] = route.split("/"),
@@ -181,7 +228,7 @@ export default function Site() {
   const today = tokyoDay();
   return (
     <SiteContext.Provider
-      value={{ w, user, refresh, open, close: () => setView(null), notice, go }}
+      value={{ w, user, refresh, write, open, close: () => setView(null), notice, go }}
     >
       <div className="shell">
         {menu && (

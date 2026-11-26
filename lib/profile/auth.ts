@@ -15,6 +15,13 @@ import { fail, id, Problem, string } from "./validation";
 
 export function authentication(env: Cloudflare.Env, origin: string) {
   if (!env.BETTER_AUTH_SECRET) throw new Problem(503, "登录服务尚未配置");
+  const cached = authInstances.get(env.DB!);
+  if (cached?.origin === origin && cached.secret === env.BETTER_AUTH_SECRET) return cached.auth;
+  const auth = createAuth(env, origin);
+  authInstances.set(env.DB!, { origin, secret: env.BETTER_AUTH_SECRET, auth });
+  return auth;
+}
+function createAuth(env: Cloudflare.Env, origin: string) {
   return betterAuth({
     database: drizzleAdapter(drizzle(env.DB!, { schema }), {
       provider: "sqlite",
@@ -40,7 +47,8 @@ export function authentication(env: Cloudflare.Env, origin: string) {
     plugins: [username({ maxUsernameLength: 40 }), admin()],
   });
 }
-export type Auth = ReturnType<typeof authentication>;
+export type Auth = ReturnType<typeof createAuth>;
+const authInstances = new WeakMap<D1Database, { origin: string; secret: string; auth: Auth }>();
 export async function member(
   auth: Auth,
   headers: Headers,

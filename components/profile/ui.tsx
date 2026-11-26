@@ -41,13 +41,15 @@ export async function request<T = any>(
   method = "GET",
   data?: unknown,
   key?: string,
+  since?: number | null,
 ): Promise<T> {
   const headers = new Headers();
   if (data !== undefined) {
     headers.set("Content-Type", "application/json");
     headers.set("Idempotency-Key", key || crypto.randomUUID());
   }
-  if (ownerSetupKey && (url === "access" || url.startsWith("setup/"))) {
+  if (since != null) headers.set("X-Workspace-Since", String(since));
+  if (ownerSetupKey && (url.split("?")[0] === "access" || url.startsWith("setup/"))) {
     headers.set("X-S-Profile-Setup", ownerSetupKey);
   }
   const r = await fetch("/api/" + url, {
@@ -66,10 +68,12 @@ export async function request<T = any>(
   if (url === "setup/complete") ownerSetupKey = "";
   return v as T;
 }
+export type WorkspaceWrite = (path: string, method: string, data: unknown, key?: string) => Promise<Values>;
 export const SiteContext = createContext<{
   w: Workspace;
   user: Account;
   refresh: () => Promise<void>;
+  write: WorkspaceWrite;
   open: (title: string, node: ReactNode, wide?: boolean) => void;
   close: () => void;
   notice: (s: string) => void;
@@ -161,13 +165,13 @@ export function FormShell({
   after,
 }: {
   children: ReactNode;
-  save: (versions: Values, key: string) => Promise<any>;
+  save: (versions: Values, key: string, write: WorkspaceWrite) => Promise<any>;
   submit?: string;
   successMessage?: string;
   sources?: { path: string; row: Values; key: string }[];
   after?: (r: any) => void;
 }) {
-  const { refresh, close, notice, w } = useSite();
+  const { write, close, notice, w } = useSite();
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [versions, setVersions] = useState<Values>({}),
@@ -185,8 +189,7 @@ export function FormShell({
     if (pending.current?.payload !== payload)
       pending.current = { payload, key: crypto.randomUUID() };
     try {
-      const result = await save(versions, pending.current!.key);
-      await refresh();
+      const result = await save(versions, pending.current!.key, write);
       close();
       notice(successMessage);
       after?.(result);
@@ -312,7 +315,7 @@ export function useValues(initial: Values): Binder {
   const [v, change] = useState<Values>(initial);
   return {
     v,
-    set: (key, value) => change((old) => ({ ...old, [key]: value })),
+    set: (key, value) => change((old) => Object.is(old[key], value) ? old : { ...old, [key]: value }),
   };
 }
 export function Text({
@@ -424,7 +427,7 @@ export function CatalogField({
   multiple?: boolean;
   editable?: boolean;
 }) {
-  const { w, refresh } = useSite(),
+  const { w, write } = useSite(),
     [adding, setAdding] = useState(false),
     [name, setName] = useState(""),
     [err, setErr] = useState(""),
@@ -439,8 +442,7 @@ export function CatalogField({
     if (!name.trim()) return;
     setBusy(true);
     try {
-      const r = await request("catalogs/" + kind, "POST", { name });
-      await refresh();
+      const r = await write("catalogs/" + kind, "POST", { name });
       b.set(k, multiple ? [...selected, r.id] : r.id);
       setAdding(false);
       setName("");

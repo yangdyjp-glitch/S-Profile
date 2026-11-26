@@ -10,6 +10,7 @@ import type {
   Workspace,
 } from "./model";
 import { identity } from "./model";
+import type { WorkspaceUpdate } from "./sync";
 import { Problem, stamp } from "./validation";
 export type Table =
   "students" | "services" | "applications" | "entries" | "catalogs";
@@ -73,6 +74,36 @@ export function unpackWorkspace(results: D1Result[]): Workspace {
 }
 export async function snapshot(db: D1Database) {
   return unpackWorkspace(await db.batch(workspaceQueries(db)));
+}
+const revisionHead = "SELECT COALESCE(MAX(seq),0) AS cursor FROM revisions";
+const deltaLimit = 250;
+type ChangeRow = { cursor: number; seq: number | null; entity: Table; entity_id: string; after: string };
+function changesAfter(db: D1Database, since: number) {
+  return db.prepare(`SELECT head.cursor, change.seq, change.entity, change.entity_id, change.after
+    FROM (${revisionHead}) AS head LEFT JOIN
+    (SELECT seq,entity,entity_id,after FROM revisions WHERE seq>? ORDER BY seq LIMIT ${deltaLimit + 1}) AS change
+    ON 1=1 ORDER BY change.seq`).bind(since);
+}
+export async function workspaceUpdate(
+  db: D1Database, since: number | null, included?: D1Result,
+): Promise<WorkspaceUpdate> {
+  if (since !== null) {
+    const rows = (included?.results ?? (await changesAfter(db, since).all()).results) as ChangeRow[];
+    const cursor = rows[0].cursor;
+    if (since <= cursor && rows.length <= deltaLimit) {
+      const latest = new Map<string, ChangeRow>();
+      for (const row of rows) {
+        if (row.seq !== null) latest.set(row.entity + "/" + row.entity_id, row);
+      }
+      const data: Workspace = { students: [], services: [], applications: [], entries: [], catalogs: [] };
+      for (const row of latest.values()) data[row.entity].push(JSON.parse(row.after));
+      return { cursor, full: false, data };
+    }
+  }
+  // The cursor and the five tables must describe exactly the same committed snapshot.
+  const result = await db.batch<Record<string, unknown>>([...workspaceQueries(db), db.prepare(revisionHead)]);
+  const cursor = Number(result[tables.length].results[0].cursor);
+  return { cursor, full: true, data: unpackWorkspace(result) };
 }
 export function expect(row: Row, v: unknown) {
   if (row.version !== v)
@@ -220,7 +251,8 @@ export async function commit(
   key: string | null,
   route: string,
   input: Input,
-  plan: () => Promise<{ sql: D1PreparedStatement[]; result: unknown }>,
+  plan: () => Promise<{ sql: D1PreparedStatement[]; result: Record<string, unknown> }>,
+  since: number | null = null,
 ) {
   if (!key || !/^[\w-]{12,100}$/.test(key))
     throw new Problem(422, "请求标识无效，请重试");
@@ -234,22 +266,23 @@ export async function commit(
       throw new Problem(409, "请求内容已变化，请重新保存");
     return r ? JSON.parse(r.result) : null;
   };
-  const done = await previous();
-  if (done) return done;
   try {
     const { sql, result } = await plan();
-    await db.batch([
+    const writes = [
       db
         .prepare(
           "INSERT INTO mutations(id,actor_id,fingerprint,result) VALUES(?,?,?,?)",
         )
         .bind(key, actor.id, signature, JSON.stringify(result)),
       ...sql,
-    ]);
-    return result;
+    ];
+    // The unique mutation key is checked before any business write in this transaction.
+    if (since !== null) writes.push(changesAfter(db, since));
+    const saved = await db.batch(writes);
+    return since === null ? result : { ...result, workspace: await workspaceUpdate(db, since, saved.at(-1)) };
   } catch (e) {
     const raced = await previous();
-    if (raced) return raced;
+    if (raced) return since === null ? raced : { ...raced, workspace: await workspaceUpdate(db, since) };
     const msg = String(e);
     if (/version_guard|CHECK constraint failed/.test(msg))
       throw new Problem(409, "资料已更新，请核对最新版本后保存");

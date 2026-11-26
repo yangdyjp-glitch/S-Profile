@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   FileClock,
@@ -98,14 +98,12 @@ function Timeline({
 }) {
   const { w, open } = useSite(),
     [filter, setFilter] = useState("");
-  const entries = newestEntries(
-      w.entries.filter(
-        (e) => e.studentId === st.id && e.kind === kind && !e.voided,
-      ),
-    ),
-    months = [...new Set(entries.map((e) => e.date.slice(0, 7) || "unknown"))]
-      .sort()
-      .reverse();
+  const entries = useMemo(() => newestEntries(
+    w.entries.filter((e) => e.studentId === st.id && e.kind === kind && !e.voided),
+  ), [w.entries, st.id, kind]);
+  const months = useMemo(() =>
+    [...new Set(entries.map((e) => e.date.slice(0, 7) || "unknown"))].sort().reverse(),
+  [entries]);
   const shown = entries.filter(
     (e) => !filter || (e.date.slice(0, 7) || "unknown") === filter,
   );

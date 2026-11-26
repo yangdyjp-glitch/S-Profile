@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
   CheckCheck,
@@ -18,11 +18,12 @@ import {
   catalogOptionLabel,
   choices,
   closureKinds,
+  compareNewestEntry,
   currentClosure,
   labelOf,
-  newestEntries,
   phases,
   tokyoDay,
+  type Application,
   type Entry,
   type Phase,
 } from "../../lib/profile/model";
@@ -229,21 +230,20 @@ function SearchBox({
     </div>
   );
 }
-function AdmittedSchools({ serviceId }: { serviceId: string }) {
-  const { w } = useSite();
-  const admissions = w.applications.filter(
-    (a) => a.serviceId === serviceId && a.admitted && !a.voided,
-  );
-  if (!admissions.length) return <span className="tag">合格学校待补</span>;
+function AdmittedSchools({ admissions, nameOf }: {
+  admissions?: Application[];
+  nameOf: (id: string, blank: string) => string;
+}) {
+  if (!admissions?.length) return <span className="tag">合格学校待补</span>;
   return (
     <ul className="admitted-schools" aria-label="合格学校">
       {admissions.map((a) => (
         <li key={a.id}>
           <span className="tag positive">
-            {labelOf(w.catalogs, a.school, "学校名称待补")}
+            {nameOf(a.school, "学校名称待补")}
           </span>
           <small>
-            {[labelOf(w.catalogs, a.project, "项目待补"), a.program]
+            {[nameOf(a.project, "项目待补"), a.program]
               .filter(Boolean)
               .join(" · ")}
           </small>
@@ -267,15 +267,36 @@ export function Workbench({
     setPage(1);
   };
   const completed = f.phase === "completed";
-  const rows = serviceRows(w, f),
+  const rows = useMemo(() => serviceRows(w, f), [w, f]),
     maxPage = Math.max(1, Math.ceil(rows.length / 18)),
     current = Math.min(page, maxPage);
-  const latest = new Map<string, Entry>();
-  for (const e of newestEntries(w.entries.filter((e) => !e.voided))) {
-    const k = e.studentId + "|" + e.kind;
-    if (!latest.has(k)) latest.set(k, e);
-  }
-  const cat = (v: string, blank?: string) => labelOf(w.catalogs, v, blank),
+  const latest = useMemo(() => {
+    const index = new Map<string, Entry>();
+    for (const entry of w.entries) {
+      if (entry.voided) continue;
+      const key = entry.studentId + "|" + entry.kind, previous = index.get(key);
+      if (!previous || compareNewestEntry(entry, previous) < 0) index.set(key, entry);
+    }
+    return index;
+  }, [w.entries]);
+  const admissions = useMemo(() => {
+    const grouped = new Map<string, Application[]>();
+    for (const app of w.applications) {
+      if (!app.admitted || app.voided) continue;
+      const items = grouped.get(app.serviceId);
+      if (items) items.push(app);
+      else grouped.set(app.serviceId, [app]);
+    }
+    return grouped;
+  }, [w.applications]);
+  const students = useMemo(() => new Map(w.students.map((s) => [s.id, s])), [w.students]);
+  const names = useMemo(() => new Map(w.catalogs.map((c) => [c.id, c.name])), [w.catalogs]);
+  const counts = useMemo(() => {
+    const result = { progress: 0, applying: 0, paused: 0, completed: 0 };
+    for (const service of w.services) result[service.phase]++;
+    return result;
+  }, [w.services]);
+  const cat = (v: string, blank = "待补") => names.get(v) || blank,
     nFilters = Object.entries(f).filter(
       ([k, v]) => !["phase", "q", "sort"].includes(k) && v,
     ).length;
@@ -283,7 +304,7 @@ export function Workbench({
     k: keyof Filters;
     title: string;
     items: (string | string[])[];
-  }[] = [
+  }[] = !more ? [] : [
     ...(["teacher", "manager", "channel", "project"] as const).map((k, i) => ({
       k,
       title: ["教务", "学管", "甲方渠道", "合同项目"][i],
@@ -333,7 +354,7 @@ export function Workbench({
               }}
             >
               <span className="phase-label">{phases[k]}</span>
-              <strong>{w.services.filter((s) => s.phase === k).length}</strong>
+              <strong>{counts[k]}</strong>
               <span className="phase-icon"><Icon size={16} /></span>
             </button>
           );
@@ -424,7 +445,7 @@ export function Workbench({
               </thead>
               <tbody>
                 {rows.slice((current - 1) * 18, current * 18).map((s) => {
-                  const st = w.students.find((t) => t.id === s.studentId)!,
+                  const st = students.get(s.studentId)!,
                     closure = completed ? currentClosure(s) : undefined,
                     log = latest.get(
                       st.id +
@@ -469,7 +490,7 @@ export function Workbench({
                       {completed && (
                         <td>
                           {closure?.kind === "admission" ? (
-                            <AdmittedSchools serviceId={s.id} />
+                            <AdmittedSchools admissions={admissions.get(s.id)} nameOf={cat} />
                           ) : (
                             <span className="tag">{closure ? closureKinds[closure.kind] : "待补"}</span>
                           )}
@@ -541,16 +562,22 @@ export function Students() {
   const { w, go, open } = useSite(),
     [q, search] = useState(""),
     [page, setPage] = useState(1);
-  const rows = w.students
-      .filter(
-        (s) =>
-          s.name.includes(q) ||
-          w.entries.some(
-            (e) => !e.voided && e.studentId === s.id && e.body.includes(q),
-          ),
-      )
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
+  const rows = useMemo(() => {
+    const matches = new Set<string>();
+    if (q) {
+      for (const entry of w.entries) {
+        if (!entry.voided && entry.body.includes(q)) matches.add(entry.studentId);
+      }
+    }
+    return w.students.filter((s) => s.name.includes(q) || matches.has(s.id))
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+  }, [w.students, w.entries, q]),
     current = Math.min(page, Math.max(1, Math.ceil(rows.length / 24)));
+  const serviceCounts = useMemo(() => {
+    const result = new Map<string, number>();
+    for (const s of w.services) result.set(s.studentId, (result.get(s.studentId) || 0) + 1);
+    return result;
+  }, [w.services]);
   return (
     <>
       <PageHead
@@ -610,7 +637,7 @@ export function Students() {
                     <td>{s.declaration || "资料待补"}</td>
                     <td>{labelOf(w.catalogs, s.manager, "学管待分配")}</td>
                     <td>
-                      {w.services.filter((v) => v.studentId === s.id).length}
+                      {serviceCounts.get(s.id) || 0}
                     </td>
                   </tr>
                 ))}

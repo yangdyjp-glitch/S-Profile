@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
 import { Hono } from "hono";
+import { compress } from "hono/compress";
 import { api } from "../dist/railway/server/api.mjs";
 import { openStorage } from "./storage.mjs";
 
@@ -23,6 +24,8 @@ export async function createRailwayApp({ directory, origin, secret, ownerDigest,
     await storage.ready();
     return c.json({ status: "ok", database: storage.backend }, 200, { "Cache-Control": "no-store" });
   });
+  const compressData = compress({ threshold: 1500, contentTypeFilter: /^application\/json\b/ });
+  app.use("/api/*", (c, next) => /^\/api\/(?:auth|setup)\//.test(c.req.path) ? next() : compressData(c, next));
   app.all("/api/*", (c) => {
     const req = c.req.raw;
     const url = new URL(base);
@@ -49,7 +52,16 @@ export async function createRailwayApp({ directory, origin, secret, ownerDigest,
     });
     return api(request, bindings, isOwner);
   });
-  app.use("*", serveStatic({ root: "./dist/railway/client" }));
+  app.use("*", async (c, next) => {
+    await next();
+    if (!c.res.ok) return;
+    const asset = c.req.path.startsWith("/assets/");
+    const cache = asset ? "public, max-age=31536000, immutable"
+      : c.req.path === "/campus.webp" ? "public, max-age=86400" : "no-cache";
+    c.header("Cache-Control", cache);
+    if (asset && /\.(js|css)$/.test(c.req.path)) c.header("Vary", "Accept-Encoding");
+  });
+  app.use("*", serveStatic({ root: "./dist/railway/client", precompressed: true }));
   return { app, close: () => storage.close() };
 }
 

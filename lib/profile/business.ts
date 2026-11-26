@@ -169,8 +169,7 @@ export async function business(
   p: string[],
   input: Input,
 ): Promise<Plan> {
-  const [section, key, child, arg] = p,
-    list = await all<Catalog>(db, "catalogs");
+  const [section, key, child, arg] = p;
   let sql: D1PreparedStatement[] = [];
   if (section === "catalogs" && Object.hasOwn(catalogs, key)) {
     const creating = method === "POST" && p.length === 2;
@@ -206,7 +205,10 @@ export async function business(
     !child &&
     (method === "POST" || method === "PATCH")
   ) {
-    const old = key ? await one<Student>(db, "students", key) : null;
+    const [old, list] = await Promise.all([
+      key ? one<Student>(db, "students", key) : null,
+      all<Catalog>(db, "catalogs", "WHERE kind='manager'"),
+    ]);
     if (old) expect(old, input.expectedVersion);
     const s = {
       ...(old ? bump(old) : meta(id("ST"))),
@@ -229,13 +231,14 @@ export async function business(
     (section === "services" && !key && method === "POST") ||
     (section === "students" && child === "services" && method === "POST")
   ) {
+    const studentId = section === "students" ? key : string(input.studentId);
+    const [existing, list] = await Promise.all([
+      studentId ? one<Student>(db, "students", studentId) : null,
+      all<Catalog>(db, "catalogs"),
+    ]);
     let st: Student;
-    if (section === "students" || string(input.studentId)) {
-      st = await one<Student>(
-        db,
-        "students",
-        section === "students" ? key : string(input.studentId),
-      );
+    if (existing) {
+      st = existing;
     } else {
       st = {
         ...meta(id("ST")),
@@ -299,11 +302,15 @@ export async function business(
       section === "applications"
         ? await one<Application>(db, "applications", key)
         : undefined;
-    const old = await one<Service>(db, "services", oldApp?.serviceId || key);
+    const serviceId = oldApp?.serviceId || key;
+    const [old, apps, list] = await Promise.all([
+      one<Service>(db, "services", serviceId),
+      serviceApps(db, serviceId),
+      all<Catalog>(db, "catalogs", oldApp || child === "applications" ? "" : "WHERE kind<>'school'"),
+    ]);
     expect(old, oldApp ? input.serviceVersion : input.expectedVersion);
     const s = bump(old);
     let action = "";
-    const apps = await serviceApps(db, s.id);
     if ((section === "services" && child === "applications") || oldApp) {
       if (oldApp) {
         expect(oldApp, input.expectedVersion);

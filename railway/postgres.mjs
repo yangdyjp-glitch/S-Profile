@@ -23,6 +23,8 @@ function poolFor(connectionString) {
   const pool = new pg.Pool({
     connectionString: url.toString(),
     max: 4,
+    pipeline: true,
+    idleTimeoutMillis: 120000,
     connectionTimeoutMillis: 15000,
     application_name: "S-Profile",
     types: {
@@ -92,10 +94,10 @@ export async function openPostgres(connectionString, directory) {
         const client = await pool.connect();
         try {
           await client.query(readOnly ? "BEGIN ISOLATION LEVEL REPEATABLE READ READ ONLY" : "BEGIN");
-          // Version guards in the next statements must see the previous writer's commit.
-          if (!readOnly) await client.query("SELECT pg_advisory_xact_lock(hashtext('sprofile.writes'))");
-          const result = [];
-          for (const stmt of statements) result.push(await stmt.run(client));
+          // One connection executes these in order. Guards run after the write lock and
+          // see the prior writer's commit, without a network wait between statements.
+          const lock = readOnly ? null : client.query("SELECT pg_advisory_xact_lock(hashtext('sprofile.writes'))");
+          const [, result] = await Promise.all([lock, Promise.all(statements.map((stmt) => stmt.run(client)))]);
           await client.query("COMMIT");
           return result;
         } catch (error) {

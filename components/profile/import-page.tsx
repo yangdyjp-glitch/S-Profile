@@ -137,8 +137,8 @@ function ResolveForm({ row, done }: { row: Source; done: () => void }) {
       }
       after={done}
       submit="确认处理"
-      save={(vs, key) =>
-        request(
+      save={(vs, key, write) =>
+        write(
           "imports/" + row.batch_id + "/resolve",
           "POST",
           {
@@ -481,7 +481,7 @@ function ResolveForm({ row, done }: { row: Source; done: () => void }) {
   );
 }
 export function ImportPage() {
-  const { open, w, refresh, notice } = useSite(),
+  const { open, refresh, notice } = useSite(),
     [list, setList] = useState<Batch[]>([]),
     [chosen, setChosen] = useState(""),
     [state, setState] = useState("pending"),
@@ -493,6 +493,11 @@ export function ImportPage() {
     [rev, bump] = useState(0);
   const ref = useRef<HTMLInputElement>(null),
     batch = list.find((b) => b.id === chosen);
+  useEffect(() => {
+    const focus = () => bump((v) => v + 1);
+    window.addEventListener("focus", focus);
+    return () => window.removeEventListener("focus", focus);
+  }, []);
   useEffect(() => {
     let alive = true;
     request<Batch[]>("imports")
@@ -508,7 +513,7 @@ export function ImportPage() {
     return () => {
       alive = false;
     };
-  }, [w, rev]);
+  }, [rev]);
   useEffect(() => {
     if (!chosen) return;
     let live = true;
@@ -532,7 +537,7 @@ export function ImportPage() {
     return () => {
       live = false;
     };
-  }, [chosen, page, state, w, rev]);
+  }, [chosen, page, state, rev]);
   async function process(key: string) {
     setChosen(key);
     setBusy("正在解析原表…");

@@ -266,25 +266,23 @@ export const emptyApplication = {
 };
 export const identity = (v: string) =>
   v.replace(/[*＊✱★☆⭐🌟✰✴✳]\uFE0F?|\s/gu, "").trim();
-export const tokyoDay = (d = new Date()) =>
-  new Intl.DateTimeFormat("sv-SE", {
-    timeZone: "Asia/Tokyo",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(d);
-export const timeLabel = (s: string) =>
-  s
-    ? new Intl.DateTimeFormat("zh-CN", {
-        timeZone: "Asia/Tokyo",
-        year: "numeric",
-        month: "2-digit",
-        day: "2-digit",
-        hour: "2-digit",
-        minute: "2-digit",
-        hour12: false,
-      }).format(new Date(s))
-    : "时间待核";
+const dayFormat = new Intl.DateTimeFormat("sv-SE", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+const timeFormat = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Tokyo",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+export const tokyoDay = (d = new Date()) => dayFormat.format(d);
+export const timeLabel = (s: string) => s ? timeFormat.format(new Date(s)) : "时间待核";
 export const currentClosure = (s: Service) =>
   [...s.closures].reverse().find((c) => !c.undone);
 export const labelOf = (list: Catalog[], id: string, fallback = "待补") =>
@@ -350,8 +348,6 @@ export const orderedApps = (list: Application[]) =>
       (a.deadline || "9999").localeCompare(b.deadline || "9999") ||
       a.id.localeCompare(b.id),
   );
-export const newestEntries = (list: Entry[]) =>
-  [...list].sort(
-    (a, b) =>
-      b.date.localeCompare(a.date) || b.recorded.localeCompare(a.recorded),
-  );
+export const compareNewestEntry = (a: Entry, b: Entry) =>
+  b.date.localeCompare(a.date) || b.recorded.localeCompare(a.recorded);
+export const newestEntries = (list: Entry[]) => [...list].sort(compareNewestEntry);
