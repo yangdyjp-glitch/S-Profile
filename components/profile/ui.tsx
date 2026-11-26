@@ -127,19 +127,8 @@ export function Dialog({ view, close }: { view: View; close: () => void }) {
       ref={ref}
       className={"dialog" + (view.wide ? " wide" : "") + (view.anchor ? " cell-dialog" : "")}
       aria-labelledby={label}
+      closedby="closerequest"
       onCancel={close}
-      onClick={(e) => {
-        if (e.target === ref.current) {
-          const r = ref.current!.getBoundingClientRect();
-          if (
-            e.clientX < r.left ||
-            e.clientX > r.right ||
-            e.clientY < r.top ||
-            e.clientY > r.bottom
-          )
-            close();
-        }
-      }}
     >
       <header>
         <h2 id={label}>{view.title}</h2>
