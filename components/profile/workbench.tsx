@@ -21,7 +21,6 @@ import {
   labelOf,
   newestEntries,
   phases,
-  timeLabel,
   tokyoDay,
   type Entry,
   type Phase,
@@ -39,6 +38,11 @@ const phaseIcons = {
   applying: Send,
   completed: CheckCheck,
 };
+const updateMonthDay = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Tokyo",
+  month: "2-digit",
+  day: "2-digit",
+});
 export function PageHead({
   title,
   subtitle,
@@ -261,6 +265,7 @@ export function Workbench({
     setFilters({ ...f, [k]: v });
     setPage(1);
   };
+  const completed = f.phase === "completed";
   const rows = serviceRows(w, f),
     maxPage = Math.max(1, Math.ceil(rows.length / 18)),
     current = Math.min(page, maxPage);
@@ -287,7 +292,7 @@ export function Workbench({
       ],
     })),
     { k: "status", title: "学生状况", items: [...choices.status, "暂停中"] },
-    { k: "risk", title: "申请风险", items: choices.risk },
+    { k: "risk", title: "潜在风险", items: choices.risk },
     { k: "progress", title: "申请进度", items: choices.progress },
     { k: "location", title: "所在地", items: choices.location },
     {
@@ -295,7 +300,7 @@ export function Workbench({
       title: "入学目标",
       items: [...new Set(w.services.flatMap((s) => s.targets))].sort(),
     },
-    ...(f.phase === "completed"
+    ...(completed
       ? [
           {
             k: "closure" as const,
@@ -399,67 +404,85 @@ export function Workbench({
         )}
         {rows.length ? (
           <div className="table-scroll">
-            <table className="data-table sticky services-table">
+            <table className={"data-table sticky services-table" + (completed ? " with-closures" : "")}>
               <thead>
                 <tr>
-                  {[
-                    "学生姓名",
-                    "合同项目 / 目标",
-                    "教务 / 学管",
-                    f.phase === "completed" ? "完成情况" : "申请进度",
-                    "最新跟进",
-                    "最近更新",
-                  ].map((v) => (
-                    <th key={v}>{v}</th>
-                  ))}
+                  <th scope="col" className="name-col">姓名</th>
+                  <th scope="col" className="major-col">专业</th>
+                  <th scope="col" className="contract-col">合同项目 / 目标</th>
+                  <th scope="col" className="staff-col">教务</th>
+                  <th scope="col" className="staff-col">学管</th>
+                  <th scope="col" className="progress-col">申请进度</th>
+                  <th scope="col" className="risk-col">潜在风险</th>
+                  {completed && <th scope="col" className="closure-col">完成情况</th>}
+                  <th scope="col">最新跟进</th>
+                  <th scope="col" className="updated-col" aria-label="最近更新" title="最近更新（月/日）">更新</th>
                 </tr>
               </thead>
               <tbody>
                 {rows.slice((current - 1) * 18, current * 18).map((s) => {
                   const st = w.students.find((t) => t.id === s.studentId)!,
-                    c = s.phase === "completed" ? currentClosure(s) : undefined,
+                    closure = completed ? currentClosure(s) : undefined,
                     log = latest.get(
                       st.id +
                         "|" +
                         (s.phase === "applying" ? "application" : "progress"),
                     );
+                  const projects = s.projects.map((p) => cat(p)).join("、") || "待补";
+                  const targets = s.targets.join(" / ") || "目标待补";
+                  const teacher = cat(s.teacher, "待分配");
+                  const manager = cat(st.manager, "待分配");
+                  const updatedAt = Date.parse(s.updatedAt);
                   return (
                     <tr key={s.id}>
                       <td>
                         <button
-                          className="row-name"
+                          className="row-name one-line"
+                          title={st.name}
                           onClick={() => go("service/" + s.id)}
                         >
                           {st.name}
                         </button>
-                        <small>{s.major || "专业待补"}</small>
                       </td>
                       <td>
-                        {s.projects.map((p) => cat(p)).join("、") || "待补"}
-                        <small>{s.targets.join(" / ") || "目标待补"}</small>
+                        <span className="two-lines" title={s.major || undefined}>
+                          {s.major || "专业待补"}
+                        </span>
                       </td>
+                      <td className="contract-cell">
+                        <span className="one-line" title={projects}>{projects}</span>
+                        <small className="one-line" title={targets}>{targets}</small>
+                      </td>
+                      <td className="one-line" title={teacher}>{teacher}</td>
+                      <td className="one-line" title={manager}>{manager}</td>
                       <td>
-                        {cat(s.teacher, "教务待分配")}
-                        <small>{cat(st.manager, "学管待分配")}</small>
+                        <span className="tag one-line" title={s.progress || undefined}>
+                          {s.progress || "待补"}
+                        </span>
                       </td>
+                      <td className="one-line" title={s.risk || undefined}>
+                        {s.risk || "风险待补"}
+                      </td>
+                      {completed && (
+                        <td>
+                          {closure?.kind === "admission" ? (
+                            <AdmittedSchools serviceId={s.id} />
+                          ) : (
+                            <span className="tag">{closure ? closureKinds[closure.kind] : "待补"}</span>
+                          )}
+                          {!!closure?.targets.length && <small>{closure.targets.join("、")}</small>}
+                        </td>
+                      )}
                       <td>
-                        {c?.kind === "admission" ? (
-                          <AdmittedSchools serviceId={s.id} />
-                        ) : (
-                          <span className="tag">
-                            {c ? closureKinds[c.kind] : s.progress || "待补"}
-                          </span>
-                        )}
-                        <small>
-                          {s.phase === "completed"
-                            ? c?.targets.join("、")
-                            : s.risk || "风险待补"}
-                        </small>
+                        <span className="two-lines" title={log?.body}>
+                          {log?.body || "暂无记录"}
+                        </span>
                       </td>
-                      <td className="excerpt" title={log?.body}>
-                        {log?.body || "暂无记录"}
+                      <td className="updated-col tabular">
+                        {Number.isFinite(updatedAt) ? (
+                          <time dateTime={s.updatedAt}>{updateMonthDay.format(updatedAt)}</time>
+                        ) : "待核"}
                       </td>
-                      <td className="tabular">{timeLabel(s.updatedAt)}</td>
                     </tr>
                   );
                 })}

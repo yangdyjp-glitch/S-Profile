@@ -944,7 +944,59 @@ summary:hover {
   line-height: 1.45;
 }
 .services-table {
+  --table-cell-padding: 6px 7px;
   min-width: 52rem;
+}
+.services-table.with-closures {
+  min-width: 62rem;
+}
+.services-table .name-col {
+  width: 10%;
+}
+.services-table .major-col,
+.services-table .closure-col {
+  width: 14%;
+}
+.services-table .contract-col {
+  width: 15%;
+}
+.services-table .staff-col {
+  width: 4.375rem;
+}
+.services-table .progress-col {
+  width: 5.5rem;
+}
+.services-table .risk-col {
+  width: 4.875rem;
+}
+.services-table .updated-col {
+  --table-cell-padding: 6px 4px;
+  width: calc(5ch + 8px);
+  text-align: center;
+  white-space: nowrap;
+}
+.services-table .one-line {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.services-table .row-name,
+.services-table .contract-cell > span {
+  display: block;
+  max-width: 100%;
+}
+.services-table .tag.one-line {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: middle;
+}
+.services-table .two-lines {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
 }
 .admitted-schools {
   display: grid;
@@ -961,7 +1013,7 @@ summary:hover {
 }
 .data-table th,
 .data-table td {
-  padding: 9px 12px;
+  padding: var(--table-cell-padding, 9px 12px);
   text-align: left;
   border-bottom: 1px solid var(--line);
   vertical-align: middle;
@@ -1640,7 +1692,7 @@ summary:hover {
   }
   .table-scroll .data-table td,
   .table-scroll .data-table th {
-    padding: 10px 12px;
+    padding: var(--table-cell-padding, 10px 12px);
   }
   .detail-summary {
     padding: 12px;
