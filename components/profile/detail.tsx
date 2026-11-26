@@ -87,7 +87,15 @@ function Missing({ items }: { items?: string[] }) {
     </div>
   ) : null;
 }
-function Timeline({ st, kind }: { st: Student; kind: EntryKind }) {
+function Timeline({
+  st,
+  kind,
+  nested = false,
+}: {
+  st: Student;
+  kind: EntryKind;
+  nested?: boolean;
+}) {
   const { w, open } = useSite(),
     [filter, setFilter] = useState("");
   const entries = newestEntries(
@@ -104,6 +112,7 @@ function Timeline({ st, kind }: { st: Student; kind: EntryKind }) {
   return (
     <Section
       title={entryKinds[kind]}
+      nested={nested}
       action={
         <button
           className="btn"
@@ -419,7 +428,6 @@ export function ServiceDetail({ id }: { id: string }) {
         <div>
           <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>
           <b>{s.projects.map((v) => cat(v)).join("、") || "合同项目待补"}</b>
-          <small>{s.id}</small>
         </div>
         <div className="actions">
           {ops.map((action) => (
@@ -455,8 +463,6 @@ export function ServiceDetail({ id }: { id: string }) {
         set={setTab}
         items={[
           ["base", "服务概况"],
-          ["schools", "学校申请"],
-          ["logs", "学生跟进"],
           ["rewards", "奖励结算"],
           ["history", "变更历史"],
         ]}
@@ -540,13 +546,15 @@ export function ServiceDetail({ id }: { id: string }) {
               </div>
             </Section>
           )}
-        </div>
-      )}
-      {tab === "schools" && <Applications s={s} />}
-      {tab === "logs" && (
-        <div className="stack">
-          <Timeline st={st} kind="progress" />
-          <Timeline st={st} kind="application" />
+          <div className="overview-records stack">
+            <Applications s={s} />
+            <Section title="学生跟进">
+              <div className="detail-grid followup-grid">
+                <Timeline st={st} kind="progress" nested />
+                <Timeline st={st} kind="application" nested />
+              </div>
+            </Section>
+          </div>
         </div>
       )}
       {tab === "rewards" && (

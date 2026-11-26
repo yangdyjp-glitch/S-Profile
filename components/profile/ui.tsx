@@ -679,15 +679,18 @@ export function Section({
   title,
   children,
   action,
+  nested = false,
 }: {
   title: string;
   children: ReactNode;
   action?: ReactNode;
+  nested?: boolean;
 }) {
+  const Heading = nested ? "h3" : "h2";
   return (
-    <section className="panel">
+    <section className={nested ? "panel-subsection" : "panel"}>
       <div className="panel-title">
-        <h2>{title}</h2>
+        <Heading>{title}</Heading>
         {action}
       </div>
       {children}
