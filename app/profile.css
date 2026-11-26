@@ -1305,11 +1305,16 @@ summary:hover {
 .timeline {
   padding-top: 0;
   display: grid;
-  gap: 12px;
+  gap: 6px;
+  container-type: inline-size;
 }
 .timeline article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) max-content;
+  align-items: baseline;
+  gap: 2px 12px;
   border-left: 3px solid var(--line);
-  padding: 4px 0 4px 14px;
+  padding: 2px 0 2px 12px;
 }
 .timeline-meta,
 .review-heading {
@@ -1319,13 +1324,30 @@ summary:hover {
   gap: 8px;
 }
 .timeline-meta {
+  gap: 2px 6px;
   font-size: 0.86rem;
+  line-height: 1.4;
   color: var(--muted);
+  overflow-wrap: anywhere;
 }
 .timeline article p {
+  grid-column: 1 / -1;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  padding: 0.4rem 0;
+  line-height: 1.45;
+}
+.timeline .actions {
+  grid-column: -2 / -1;
+  grid-row: 1;
+  gap: 6px;
+}
+@container (min-width: 30rem) {
+  .timeline article {
+    grid-template-columns: 8.5rem minmax(0, 1fr) max-content;
+  }
+  .timeline article p {
+    grid-column: 2;
+  }
 }
 .history-list details {
   margin-bottom: 8px;
