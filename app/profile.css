@@ -871,6 +871,13 @@ summary:hover {
 .services-table {
   min-width: 52rem;
 }
+.admitted-schools {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
 .students-table {
   min-width: 42rem;
 }

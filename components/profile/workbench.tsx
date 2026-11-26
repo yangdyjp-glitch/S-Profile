@@ -224,6 +224,29 @@ function SearchBox({
     </div>
   );
 }
+function AdmittedSchools({ serviceId }: { serviceId: string }) {
+  const { w } = useSite();
+  const admissions = w.applications.filter(
+    (a) => a.serviceId === serviceId && a.admitted && !a.voided,
+  );
+  if (!admissions.length) return <span className="tag">合格学校待补</span>;
+  return (
+    <ul className="admitted-schools" aria-label="合格学校">
+      {admissions.map((a) => (
+        <li key={a.id}>
+          <span className="tag positive">
+            {labelOf(w.catalogs, a.school, "学校名称待补")}
+          </span>
+          <small>
+            {[labelOf(w.catalogs, a.project, "项目待补"), a.program]
+              .filter(Boolean)
+              .join(" · ")}
+          </small>
+        </li>
+      ))}
+    </ul>
+  );
+}
 export function Workbench({
   filters: f,
   setFilters,
@@ -409,7 +432,7 @@ export function Workbench({
               <tbody>
                 {rows.slice((current - 1) * 18, current * 18).map((s) => {
                   const st = w.students.find((t) => t.id === s.studentId)!,
-                    c = currentClosure(s),
+                    c = s.phase === "completed" ? currentClosure(s) : undefined,
                     log = latest.get(
                       st.id +
                         "|" +
@@ -435,11 +458,13 @@ export function Workbench({
                         <small>{cat(st.manager, "学管待分配")}</small>
                       </td>
                       <td>
-                        <span className="tag">
-                          {s.phase === "completed" && c
-                            ? closureKinds[c.kind]
-                            : s.progress || "待补"}
-                        </span>
+                        {c?.kind === "admission" ? (
+                          <AdmittedSchools serviceId={s.id} />
+                        ) : (
+                          <span className="tag">
+                            {c ? closureKinds[c.kind] : s.progress || "待补"}
+                          </span>
+                        )}
                         <small>
                           {s.phase === "completed"
                             ? c?.targets.join("、")
