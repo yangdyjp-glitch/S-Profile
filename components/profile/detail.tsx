@@ -66,27 +66,6 @@ function Tabs({
     </nav>
   );
 }
-function Missing({ items }: { items?: string[] }) {
-  return items?.length ? (
-    <div className="context-note">
-      历史资料待补 ·{" "}
-      {items
-        .map(
-          (k) =>
-            labels[k] ||
-            (
-              {
-                scores: "具体语言成绩",
-                admission: "合格依据",
-                closureNote: "结案说明",
-              } as Record<string, string>
-            )[k] ||
-            k,
-        )
-        .join("、")}
-    </div>
-  ) : null;
-}
 function Timeline({
   st,
   kind,
@@ -478,7 +457,6 @@ export function ServiceDetail({ id }: { id: string }) {
                 ["当前入学目标", s.targets.join("、")],
               ]}
             />
-            <Missing items={s.missing} />
           </Section>
           <Section title="工作进度">
             <Facts
@@ -652,7 +630,6 @@ export function StudentDetail({ id }: { id: string }) {
                 ["托业", st.toeic || "未填写"],
               ]}
             />
-            <Missing items={st.missing} />
           </Section>
           <Section title={"历次服务 · " + services.length}>
             {services.length ? (

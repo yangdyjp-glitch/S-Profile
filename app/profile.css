@@ -1266,9 +1266,6 @@ summary:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
-.panel > .context-note {
-  margin: 0 18px 17px;
-}
 .section-pad,
 .history-list,
 .record-list,
