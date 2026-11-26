@@ -254,8 +254,8 @@ export default function Site() {
           </div>
         </aside>
         <div className="shell-body" inert={menu}>
-          <header className="shell-top">
-            <div className="breadcrumbs">
+          <header className={"shell-top" + (page === "services" ? " workbench-top" : "")}>
+            <div className="shell-navigation">
               <button
                 ref={navToggle}
                 className="icon mobile"
@@ -266,14 +266,18 @@ export default function Site() {
               >
                 <Menu size={20} />
               </button>
-              <span>工作空间</span>
-              <ChevronRight size={14} />
-              <b>{section?.name || "工作台"}</b>
-              {id && (
-                <>
+              {page !== "services" && (
+                <div className="breadcrumbs">
+                  <span>工作空间</span>
                   <ChevronRight size={14} />
-                  <span>详情</span>
-                </>
+                  <b>{section?.name || "工作台"}</b>
+                  {id && (
+                    <>
+                      <ChevronRight size={14} />
+                      <span>详情</span>
+                    </>
+                  )}
+                </div>
               )}
             </div>
             <time className="shell-date small-info" dateTime={today}>

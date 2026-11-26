@@ -307,29 +307,7 @@ export function Workbench({
   ];
   return (
     <>
-      <PageHead
-        title="服务工作台"
-        subtitle="按服务阶段查看学生档案与最新跟进。"
-        actions={
-          <>
-            <button
-              className="btn"
-              onClick={() => open("导出 Excel", <ExportDialog filters={f} />)}
-            >
-              <Download size={16} />
-              导出
-            </button>
-            <button
-              className="btn primary"
-              onClick={() => open("新建服务", <ServiceEditor />, true)}
-            >
-              <Plus size={17} />
-              新建服务
-            </button>
-          </>
-        }
-      />
-      <div className="phase-grid">
+      <div className="phase-grid" role="group" aria-label="服务阶段">
         {(Object.keys(phases) as Phase[]).map((k) => {
           const Icon = phaseIcons[k];
           return (
@@ -348,26 +326,25 @@ export function Workbench({
             >
               <span className="phase-label">{phases[k]}</span>
               <strong>{w.services.filter((s) => s.phase === k).length}</strong>
-              <span className="phase-icon"><Icon size={20} /></span>
+              <span className="phase-icon"><Icon size={16} /></span>
             </button>
           );
         })}
       </div>
-      <section className="panel list-panel">
-        <div className="list-title">
-          <h2>
+      <section className="panel list-panel" aria-labelledby="service-list-heading">
+        <header className="workbench-toolbar">
+          <h1 id="service-list-heading">
             {phases[f.phase]}服务 <span>{rows.length}</span>
-          </h2>
-        </div>
-        <div className="toolbar">
+          </h1>
           <SearchBox
             value={f.q}
             change={(v) => set("q", v)}
             placeholder="搜索学生姓名或记录正文"
           />
           <button
-            className={"btn " + (more || nFilters ? "highlight" : "")}
+            className={"btn filter-toggle" + (more || nFilters ? " highlight" : "")}
             aria-expanded={more}
+            aria-controls={more ? "service-filters" : undefined}
             onClick={() => setMore(!more)}
           >
             <ListFilter size={16} />
@@ -383,9 +360,17 @@ export function Workbench({
             <option value="name">姓名排序</option>
             <option value="target">入学目标</option>
           </select>
-        </div>
+          <button
+            className="btn primary create-service"
+            aria-haspopup="dialog"
+            onClick={() => open("新建服务", <ServiceEditor />, true)}
+          >
+            <Plus size={17} />
+            新建服务
+          </button>
+        </header>
         {more && (
-          <div className="filter-box">
+          <div className="filter-box" id="service-filters">
             {filters.map(({ k, title, items }) => (
               <Field label={title} key={k}>
                 <select value={f[k]} onChange={(e) => set(k, e.target.value)}>
