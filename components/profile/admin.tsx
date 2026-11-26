@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { catalogs, type Account, type Catalog, type Kind } from "../../lib/profile/model";
+import { catalogs, passwordLength, type Account, type Catalog, type Kind } from "../../lib/profile/model";
 import { CatalogEditor } from "./editors";
 import {
   ApiError,
@@ -199,7 +199,8 @@ function UserEditor({
             b={b}
             k="password"
             type="password"
-            title="初始密码（至少 10 位）"
+            title={`初始密码（至少 ${passwordLength.min} 位）`}
+            minLength={passwordLength.min}
             required
           />
           <Select
@@ -217,7 +218,8 @@ function UserEditor({
           b={b}
           k="password"
           type="password"
-          title={"为 " + account?.name + " 设置新密码（至少 10 位）"}
+          title={`为 ${account?.name} 设置新密码（至少 ${passwordLength.min} 位）`}
+          minLength={passwordLength.min}
           required
         />
       ) : (

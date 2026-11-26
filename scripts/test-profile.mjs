@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { randomBytes, randomUUID } from "node:crypto";
+import { randomBytes, randomInt, randomUUID } from "node:crypto";
 import { readdir, readFile } from "node:fs/promises";
 import { resolve, join } from "node:path";
 import { pathToFileURL } from "node:url";
@@ -47,7 +47,7 @@ const runtime = railway
   : await createSitesRuntime();
 const clientDirectory = railway ? "dist/railway/client" : "dist/client";
 const origin = "http://127.0.0.1",
-  pass = randomBytes(20).toString("hex");
+  pass = randomInt(100000, 1000000).toString();
 let cookie = "",
   checks = 0;
 async function call(path, method = "GET", data, opts = {}) {
@@ -134,12 +134,15 @@ async function run() {
   await call("imports/example/original", "GET", undefined, { status: 401 });
   await call("auth/sign-up/email", "POST", {}, { status: 404 });
   const { ticket } = await call("setup/ticket", "POST", {}, setup);
-  await call("setup/complete", "POST", {
+  const owner = {
     ticket,
     name: "验收管理员",
     username: "qa.owner",
     password: pass,
-  }, setup);
+  };
+  const tooShort = pass.slice(1);
+  await call("setup/complete", "POST", { ...owner, password: tooShort }, { ...setup, status: 422 });
+  await call("setup/complete", "POST", owner, setup);
   await call("setup/ticket", "POST", {}, { ...setup, status: 403 });
   await call(
     "auth/sign-in/username",
@@ -152,12 +155,16 @@ async function run() {
   let w = await call("workspace");
   assert.equal(w.catalogs.length, 34);
   const cat = (kind, n = 0) => w.catalogs.filter((c) => c.kind === kind)[n].id;
-  const staff = await call("admin/users", "POST", {
+  const memberAccount = {
     username: "qa.member",
     name: "验收成员",
     password: pass,
     role: "user",
-  });
+  };
+  for (const password of [tooShort, "x".repeat(129)]) {
+    await call("admin/users", "POST", { ...memberAccount, password }, { status: 422 });
+  }
+  const staff = await call("admin/users", "POST", memberAccount);
   await call(
     "auth/sign-in/username",
     "POST",
@@ -576,9 +583,11 @@ async function run() {
   assert.ok(unresolved.rows[0].issues.some((issue) => issue.includes(oldChannel.name) && issue.includes("删除")));
   assert.ok(!(await call("catalogs/channel")).some((c) => c.name === oldChannel.name));
   cookie = adminCookie;
+  const resetPassword = "r" + tooShort;
+  await call("admin/users/" + staff.id, "PATCH", { action: "reset", password: tooShort }, { status: 422 });
   await call("admin/users/" + staff.id, "PATCH", {
     action: "reset",
-    password: pass + "new",
+    password: resetPassword,
   });
   await call("workspace", "GET", undefined, {
     cookie: memberCookie,
@@ -587,9 +596,13 @@ async function run() {
   await call(
     "auth/sign-in/username",
     "POST",
-    { username: "qa.member", password: pass + "new" },
+    { username: "qa.member", password: resetPassword },
     { login: true },
   );
+  const newPassword = "s" + tooShort;
+  await call("auth/change-password", "POST", { currentPassword: resetPassword, newPassword: tooShort }, { status: 400 });
+  await call("auth/change-password", "POST", { currentPassword: resetPassword, newPassword }, { login: true });
+  assert.equal((await call("access")).user.id, staff.id);
   const renewed = cookie;
   cookie = adminCookie;
   await call("admin/users/" + staff.id, "PATCH", { action: "disable" });

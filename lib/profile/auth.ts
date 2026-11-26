@@ -6,6 +6,7 @@ import { drizzle } from "drizzle-orm/d1";
 import * as schema from "../../db/auth-schema";
 import {
   initialCatalogs,
+  passwordLength,
   type Account,
   type Catalog,
   type Kind,
@@ -35,8 +36,8 @@ function createAuth(env: Cloudflare.Env, origin: string) {
     emailAndPassword: {
       enabled: true,
       disableSignUp: true,
-      minPasswordLength: 10,
-      maxPasswordLength: 128,
+      minPasswordLength: passwordLength.min,
+      maxPasswordLength: passwordLength.max,
     },
     session: { cookieCache: { enabled: false } },
     advanced: {
@@ -101,8 +102,8 @@ function credentials(input: Input) {
   return { username, password, name };
 }
 function passwordCheck(password: string) {
-  if (password.length < 10 || password.length > 128)
-    fail("password", "密码长度须为 10–128 个字符");
+  if (password.length < passwordLength.min || password.length > passwordLength.max)
+    fail("password", `密码长度须为 ${passwordLength.min}–${passwordLength.max} 个字符`);
 }
 async function accountPlan(
   db: D1Database,

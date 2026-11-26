@@ -12,7 +12,7 @@ import {
   ShieldCheck,
   UserRound,
 } from "lucide-react";
-import { phases } from "../../lib/profile/model";
+import { passwordLength, phases } from "../../lib/profile/model";
 import { Brand, ErrorBox, request } from "./ui";
 
 export function Login({
@@ -151,8 +151,8 @@ export function Login({
                     name="password"
                     type={show ? "text" : "password"}
                     autoComplete={setup ? "new-password" : "current-password"}
-                    minLength={setup ? 10 : undefined}
-                    placeholder={setup ? "至少 10 个字符" : "输入密码"}
+                    minLength={setup ? passwordLength.min : undefined}
+                    placeholder={setup ? `至少 ${passwordLength.min} 个字符` : "输入密码"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required

@@ -204,6 +204,7 @@ export interface Revision {
   before: string | null;
   after: string;
 }
+export const passwordLength = { min: 6, max: 128 } as const;
 export interface Account {
   id: string;
   name: string;

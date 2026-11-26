@@ -7,6 +7,7 @@ import {
   emptyService,
   emptyStudent,
   entryKinds,
+  passwordLength,
   phases,
   requiresActiveStatus,
   roles,
@@ -630,8 +631,9 @@ export function PasswordEditor() {
         <Text
           b={b}
           k="newPassword"
-          title="新密码（10–128 位）"
+          title={`新密码（${passwordLength.min}–${passwordLength.max} 位）`}
           type="password"
+          minLength={passwordLength.min}
           required
         />
       </div>

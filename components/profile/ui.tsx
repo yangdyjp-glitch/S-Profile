@@ -345,6 +345,7 @@ export function Text({
   hint,
   disabled = false,
   placeholder,
+  minLength,
 }: {
   b: Binder;
   k: string;
@@ -355,6 +356,7 @@ export function Text({
   hint?: string;
   disabled?: boolean;
   placeholder?: string;
+  minLength?: number;
 }) {
   const common = {
     name: k,
@@ -362,6 +364,7 @@ export function Text({
     disabled,
     value: b.v[k] ?? "",
     placeholder,
+    minLength,
     onInput: (e: React.FormEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       b.set(k, e.currentTarget.value),
     onBlur: (e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>) =>
