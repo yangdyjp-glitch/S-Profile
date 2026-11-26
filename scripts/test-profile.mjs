@@ -96,6 +96,16 @@ async function run() {
   assert.equal(withoutRepeatedEntryDate("09.29：", "2026-09-29"), "");
   assert.deepEqual(cleanStoredEntry({ date: "2026-09-29", body: "09.29：手动记录", author: "旧作者" }),
     { date: "2026-09-29", body: "09.29：手动记录" });
+  const undated = { source: "出愿中!N3", date: "", rawDate: "年份待核" };
+  const multiline = "08.05：已联系\r\n　０８２６：等9月3日回复（程）\n09.09: 约在10.01见面";
+  const cleaned = cleanStoredEntry({ ...undated, body: multiline });
+  assert.deepEqual(cleaned, { ...undated, body: "已联系\r\n等9月3日回复（程）\n约在10.01见面" });
+  assert.strictEqual(cleanStoredEntry(cleaned), cleaned);
+  for (const body of ["09.29 前递交", "09.29 至 10.03 放假", "2.5 分", "2026：年度计划", "0230：编号", "2025.02.29：日期不详"]) {
+    assert.equal(cleanStoredEntry({ ...undated, body }).body, body);
+  }
+  assert.equal(cleanStoredEntry({ ...undated, body: "02.29：待补" }).body, "待补");
+  assert.equal(cleanStoredEntry({ ...undated, source: "", body: multiline }).body, multiline);
   const setup = railway ? { headers: { "X-S-Profile-Setup": runtime.key } } : {};
   if (railway) {
     const health = await runtime.dispatchFetch(origin + "/healthz");
@@ -459,6 +469,10 @@ async function run() {
   const april = current.entries.filter((e) => e.source.startsWith("进行中!R2 ")).sort((a, b) => a.date.localeCompare(b.date));
   assert.deepEqual(april.map(({ date, body }) => [date, body]),
     [["2024-04-15", "早期进度（程）\n第二行补充"], ["2024-04-16", "5月底前补材料"]]);
+  const yearMissing = current.entries.find((e) => e.source.startsWith("进行中!S3 "));
+  assert.equal(yearMissing.date, "");
+  assert.equal(yearMissing.rawDate, "4月");
+  assert.equal(yearMissing.body, "缺年份\n仍待确认");
   assert.ok(current.entries.some((e) => e.kind === "application" && e.date === "2026-09-29" && e.body === "10.03前交材料"));
   assert.ok(current.entries.every((e) => !Object.hasOwn(e, "author")));
   for (const table of Object.keys(current)) {
@@ -467,10 +481,12 @@ async function run() {
   }
   assert.deepEqual(mergeWorkspace(merged, replay.workspace), merged, "overlapping changes cannot roll back data");
   if (railway) {
-    const seq = await runtime.restartWithLegacyEntry(april[0].id);
-    const delta = await call("workspace?since=" + (seq - 1));
-    assert.equal(delta.full, false);
-    assert.deepEqual(delta.data.entries.find((e) => e.id === april[0].id), april[0]);
+    for (const [entry, originalBody] of [[yearMissing, sheet.getCell("S3").text], [april[0], "04.15：" + april[0].body]]) {
+      const seq = await runtime.restartWithLegacyEntry(entry.id, originalBody);
+      const delta = await call("workspace?since=" + (seq - 1));
+      assert.equal(delta.full, false);
+      assert.deepEqual(delta.data.entries.find((e) => e.id === entry.id), entry);
+    }
   }
   const original = await call(
     "imports/" + batch.id + "/original",
@@ -537,6 +553,8 @@ async function run() {
     assert.equal(detail[columns.indexOf("正文")], april[0].body);
     assert.equal(detail[columns.indexOf("业务日期")], april[0].date);
     assert.equal(detail[columns.indexOf("来源")], april[0].source);
+    const pendingDetail = details.getSheetValues().find((r) => r?.[1] === yearMissing.id);
+    assert.equal(pendingDetail[columns.indexOf("正文")], yearMissing.body);
     const monthly = logs.getSheetValues().find((r) => r?.[1] === april[0].studentId)[headers.indexOf("2024-04")];
     assert.match(monthly, /2024-04-15  早期进度（程）/u);
     assert.doesNotMatch(monthly, /作者未知|04\.15：/u);

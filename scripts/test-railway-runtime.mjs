@@ -52,7 +52,7 @@ export async function createRailwayTestRuntime() {
       const { pathname, search } = new URL(url);
       return fetch(address + pathname + search, init);
     },
-    async restartWithLegacyEntry(id) {
+    async restartWithLegacyEntry(id, originalBody) {
       await stop();
       const originalStore = await openStorage(scratch.path, config.databaseUrl);
       const query = "SELECT data,version,updated_at FROM entries WHERE id=?";
@@ -63,12 +63,13 @@ export async function createRailwayTestRuntime() {
         original = await db.prepare(query).bind(id).first();
         historical = await db.prepare(revision).bind(id).first();
         const entry = JSON.parse(original.data);
-        const fields = { body: entry.date + "：" + entry.body, author: "原表作者" };
+        const fields = { body: originalBody, author: "原表作者" };
         historical.after = JSON.stringify({ ...JSON.parse(historical.after), ...fields });
         await db.batch([
           db.prepare("UPDATE entries SET data=? WHERE id=?").bind(JSON.stringify({ ...entry, ...fields }), id),
           db.prepare("UPDATE revisions SET after=? WHERE seq=?").bind(historical.after, historical.seq),
           db.prepare("DELETE FROM sprofile_migrations WHERE name=?").bind(entryFormatMigration),
+          db.prepare("INSERT INTO sprofile_migrations(name) VALUES(?) ON CONFLICT(name) DO NOTHING").bind("entry-date-heading-v1"),
         ]);
       } finally {
         await originalStore.close();

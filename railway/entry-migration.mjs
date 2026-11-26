@@ -1,6 +1,6 @@
 import { cleanStoredEntry } from "../lib/profile/entry-text.mjs";
 
-export const entryFormatMigration = "entry-date-heading-v1";
+export const entryFormatMigration = "entry-date-heading-v2";
 
 export function entryFormatUpdates(rows) {
   const updates = [];
