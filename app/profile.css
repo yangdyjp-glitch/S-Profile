@@ -55,12 +55,14 @@ select:focus {
 h1,
 h2,
 h3,
+h4,
 p {
   margin: 0;
 }
 h1,
 h2,
-h3 {
+h3,
+h4 {
   line-height: 1.35;
   color: var(--ink);
   font-weight: 700;
@@ -72,7 +74,8 @@ h1 {
 h2 {
   font-size: 1.18rem;
 }
-h3 {
+h3,
+h4 {
   font-size: 1rem;
 }
 small {
@@ -1221,13 +1224,26 @@ summary:hover {
   grid-column: 1 / -1;
   min-width: 0;
 }
-.followup-grid {
+.application-grid {
   gap: 0;
+}
+.application-grid .record-title {
+  overflow-wrap: anywhere;
+}
+.application-grid .empty {
+  min-height: 9rem;
+  padding-block: 1rem;
+}
+@media (min-width: 781px) {
+  .overview-records :is(.timeline, .record-list) {
+    max-block-size: 20rem;
+    overflow-y: auto;
+  }
 }
 .panel-subsection {
   min-width: 0;
 }
-.followup-grid > .panel-subsection + .panel-subsection {
+.application-grid > .panel-subsection + .panel-subsection {
   border-inline-start: 1px solid var(--line);
 }
 .facts {
@@ -1593,7 +1609,7 @@ summary:hover {
   .detail-grid {
     grid-template-columns: 1fr;
   }
-  .followup-grid > .panel-subsection + .panel-subsection {
+  .application-grid > .panel-subsection + .panel-subsection {
     border-inline-start: 0;
     border-top: 1px solid var(--line);
   }

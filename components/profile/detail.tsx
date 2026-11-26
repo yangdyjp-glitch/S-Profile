@@ -90,10 +90,12 @@ function Missing({ items }: { items?: string[] }) {
 function Timeline({
   st,
   kind,
+  title = entryKinds[kind],
   nested = false,
 }: {
   st: Student;
   kind: EntryKind;
+  title?: string;
   nested?: boolean;
 }) {
   const { w, open } = useSite(),
@@ -109,7 +111,7 @@ function Timeline({
   );
   return (
     <Section
-      title={entryKinds[kind]}
+      title={title}
       nested={nested}
       action={
         <button
@@ -295,6 +297,7 @@ function Applications({ s }: { s: Service }) {
   return (
     <Section
       title={"学校申请 · " + apps.length}
+      nested
       action={
         <button
           className="btn"
@@ -314,7 +317,7 @@ function Applications({ s }: { s: Service }) {
                   <GraduationCap size={20} />
                 </span>
                 <div>
-                  <h3>{cat(a.school)}</h3>
+                  <h4>{cat(a.school)}</h4>
                   <small>
                     {cat(a.project)}
                     {a.program ? " · " + a.program : ""}
@@ -519,14 +522,6 @@ export function ServiceDetail({ id }: { id: string }) {
               )}
             </Section>
           )}
-          <Section title="特记事项与备注">
-            <Facts
-              values={[
-                ["特记事项", s.special || "未填写"],
-                ["备注", s.notes || "未填写"],
-              ]}
-            />
-          </Section>
           {s.pauses.length > 0 && (
             <Section title="暂停历史">
               <div className="section-pad">
@@ -545,12 +540,20 @@ export function ServiceDetail({ id }: { id: string }) {
             </Section>
           )}
           <div className="overview-records stack">
-            <Applications s={s} />
-            <Section title="学生跟进">
-              <div className="detail-grid followup-grid">
-                <Timeline st={st} kind="progress" nested />
+            <Timeline st={st} kind="progress" title="学生跟进情况" />
+            <Section title="申请与出愿">
+              <div className="detail-grid application-grid">
+                <Applications s={s} />
                 <Timeline st={st} kind="application" nested />
               </div>
+            </Section>
+            <Section title="特记事项与备注">
+              <Facts
+                values={[
+                  ["特记事项", s.special || "未填写"],
+                  ["备注", s.notes || "未填写"],
+                ]}
+              />
             </Section>
           </div>
         </div>
