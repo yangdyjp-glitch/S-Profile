@@ -806,8 +806,7 @@ summary:hover {
 .toolbar,
 .page-nav,
 .dialog > header,
-.dialog-foot,
-.item-foot {
+.dialog-foot {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1313,7 +1312,6 @@ summary:hover {
   padding: 4px 0 4px 14px;
 }
 .timeline-meta,
-.item-foot,
 .review-heading {
   display: flex;
   align-items: center;
@@ -1328,9 +1326,6 @@ summary:hover {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   padding: 0.4rem 0;
-}
-.item-foot small {
-  margin-right: auto;
 }
 .history-list details {
   margin-bottom: 8px;

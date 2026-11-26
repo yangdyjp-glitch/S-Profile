@@ -152,11 +152,7 @@ function Timeline({
                 <span>第 {e.version} 版</span>
               </div>
               {e.body && <p>{e.body}</p>}
-              <div className="item-foot">
-                <small>
-                  登记于 {timeLabel(e.recorded)}
-                  {e.source && " · " + e.source.split(" · ")[0]}
-                </small>
+              <div className="actions end">
                 <button
                   className="row-action edit"
                   onClick={() =>
