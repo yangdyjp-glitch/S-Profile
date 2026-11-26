@@ -1017,12 +1017,16 @@ summary:hover {
 .contract-cell .cell-edit {
   min-height: 0;
 }
-.cell-edit:hover,
-.cell-edit:focus-visible,
-.name-edit:hover,
-.name-edit:focus-visible {
-  color: var(--deep);
-  background: var(--selected);
+.services-table :is(.cell-edit, .name-edit, .row-name):is(:hover, :focus-visible) {
+  color: white;
+  background: var(--primary);
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.services-table .cell-edit:is(:hover, :focus-visible) :is(.tag, small) {
+  color: inherit;
+}
+.services-table .cell-edit:is(:hover, :focus-visible) .tag {
+  background: var(--deep);
 }
 .services-table .tag.one-line {
   display: inline-block;
