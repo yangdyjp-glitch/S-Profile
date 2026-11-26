@@ -407,7 +407,6 @@ export async function business(
           date: tokyoDay(),
           precision: "date",
           rawDate: "",
-          author: actor.name,
           recorded: stamp(),
           voided: false,
           source: "",

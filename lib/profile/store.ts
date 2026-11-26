@@ -10,6 +10,7 @@ import type {
   Workspace,
 } from "./model";
 import { identity } from "./model";
+import { cleanStoredEntry } from "./entry-text.mjs";
 import type { WorkspaceUpdate } from "./sync";
 import { Problem, stamp } from "./validation";
 export type Table =
@@ -17,9 +18,13 @@ export type Table =
 export type Entity = Student | Service | Application | Entry | Catalog;
 export type Input = Record<string, unknown>;
 type SqlRow = { id: string; data: string; version: number; updated_at: string };
-export function unpack<T>(r: SqlRow): T {
+function entityData(table: Table, data: string) {
+  const value = JSON.parse(data);
+  return table === "entries" ? cleanStoredEntry(value) : value;
+}
+function unpack<T>(r: SqlRow, table: Table): T {
   return {
-    ...JSON.parse(r.data),
+    ...entityData(table, r.data),
     id: r.id,
     version: r.version,
     updatedAt: r.updated_at,
@@ -35,7 +40,7 @@ export async function all<T>(
     .prepare(`SELECT id,data,version,updated_at FROM ${table} ${where}`)
     .bind(...args)
     .all<SqlRow>();
-  return result.results.map((r) => unpack<T>(r));
+  return result.results.map((r) => unpack<T>(r, table));
 }
 export async function one<T extends Row>(
   db: D1Database,
@@ -47,7 +52,7 @@ export async function one<T extends Row>(
     .bind(id)
     .first<SqlRow>();
   if (!r) throw new Problem(404, "这条记录不存在");
-  return unpack<T>(r);
+  return unpack<T>(r, table);
 }
 export async function catalogItem(db: D1Database, kind: string, id: string) {
   const item = await one<Catalog>(db, "catalogs", id);
@@ -68,7 +73,7 @@ export function unpackWorkspace(results: D1Result[]): Workspace {
   return Object.fromEntries(
     tables.map((t, i) => [
       t,
-      results[i].results.map((r) => unpack(r as SqlRow)),
+      results[i].results.map((r) => unpack(r as SqlRow, t)),
     ]),
   ) as unknown as Workspace;
 }
@@ -96,7 +101,7 @@ export async function workspaceUpdate(
         if (row.seq !== null) latest.set(row.entity + "/" + row.entity_id, row);
       }
       const data: Workspace = { students: [], services: [], applications: [], entries: [], catalogs: [] };
-      for (const row of latest.values()) data[row.entity].push(JSON.parse(row.after));
+      for (const row of latest.values()) data[row.entity].push(entityData(row.entity, row.after));
       return { cursor, full: false, data };
     }
   }
@@ -146,6 +151,7 @@ export function record(
   studentId = "",
   serviceId = "",
 ): D1PreparedStatement[] {
+  if (table === "entries") next = cleanStoredEntry(next as Entry);
   const { id, version, updatedAt, ...body } = next;
   const extras: Record<string, string> = {};
   if (table === "students") extras.identity = identity((next as Student).name);

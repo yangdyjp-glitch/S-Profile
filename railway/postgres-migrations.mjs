@@ -1,6 +1,7 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { entryFormatMigration, entryFormatUpdates } from "./entry-migration.mjs";
 
 // Parent tables precede their dependants so every foreign key is checked on import.
 const tables = [
@@ -88,6 +89,17 @@ export async function initializePostgres(client, directory) {
     if (!applied.has("railway-sqlite-transfer-v1")) {
       counts = await transferSqlite(client, directory);
       await mark("railway-sqlite-transfer-v1");
+    }
+    if (!applied.has(entryFormatMigration)) {
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('sprofile.writes'))");
+      const { rows } = await client.query("SELECT id,data FROM entries FOR UPDATE");
+      const updates = entryFormatUpdates(rows);
+      if (updates.length) {
+        await client.query(`UPDATE entries SET data=patch.data
+          FROM jsonb_to_recordset($1::jsonb) AS patch(id text, data text)
+          WHERE entries.id=patch.id`, [JSON.stringify(updates)]);
+      }
+      await mark(entryFormatMigration);
     }
     await client.query("COMMIT");
     if (counts) console.info("Verified SQLite transfer to PostgreSQL", JSON.stringify(counts));

@@ -3,6 +3,7 @@ import type { Cell, Worksheet } from "exceljs";
 import * as SSF from "ssf";
 import { choices, identity, initialCatalogs, type Phase } from "./model";
 import { day, intake, month } from "./validation";
+import { dateOfEntryLabel, entryDateLabel, withoutRepeatedEntryDate } from "./entry-text.mjs";
 import type {
   Proposal,
   ProposedEntry,
@@ -56,6 +57,19 @@ function dates(s: string) {
   ];
 }
 const headerName = /^(?:学生姓名|姓名[（(]学生[)）]|姓名|学生名|学生)$/;
+function cellNotes(text: string, reference: string) {
+  const dated = (line: string) => {
+    const label = entryDateLabel(line);
+    return label && calendar(dateOfEntryLabel(label, reference));
+  };
+  if (!text.includes("\n") || !dated(text)) return [text];
+  const notes: string[] = [];
+  for (const line of text.split(/(?<=\n)/u)) {
+    if (!notes.length || dated(line)) notes.push(line);
+    else notes[notes.length - 1] += line;
+  }
+  return notes.map((note, i) => i < notes.length - 1 ? note.replace(/\r?\n$/u, "") : note);
+}
 function propose(
   sheet: Worksheet,
   cells: SourceCell[],
@@ -171,24 +185,27 @@ function propose(
   const addEntry = (c: SourceCell, kind: ProposedEntry["kind"]) => {
     if (!c.text.trim() || c.master) return;
     const header = head.get(c.col) || "";
-    const inHeader = calendar(header),
-      prefix =
-        c.text.match(
-          /^\s*([12]\d{3}[年./-]\d{1,2}(?:[月./-]\d{1,2}日?)?)/,
-        )?.[1] || "";
-    const inText = calendar(prefix),
-      conflict =
-        inHeader && inText && inHeader.slice(0, 7) !== inText.slice(0, 7);
-    const date = conflict ? "" : inText || inHeader;
-    if (!date) issues.push(c.a + " 的记录日期待核");
-    p.entries.push({
-      kind,
-      body: c.text,
-      date,
-      precision: date.length === 10 ? "date" : date ? "month" : "unknown",
-      rawDate: header,
-      cell: c.a,
-    });
+    const inHeader = calendar(header);
+    for (const text of cellNotes(c.text, inHeader)) {
+      const label = entryDateLabel(text);
+      const prefix = label ? dateOfEntryLabel(label, inHeader)
+        : text.match(/^\s*([12]\d{3}[年./-]\d{1,2}(?:[月./-]\d{1,2}日?)?)/)?.[1] || "";
+      const inText = calendar(prefix);
+      const conflict = inHeader && inText && !inText.startsWith(inHeader) && !inHeader.startsWith(inText);
+      let date = inText.length > inHeader.length ? inText : inHeader;
+      if (conflict || (prefix && !inText)) date = "";
+      const issue = c.a + " 的记录日期待核";
+      if (!date && !issues.includes(issue)) issues.push(issue);
+      p.entries.push({
+        kind,
+        // A date-only cell still supplies an entry when the proposal is committed.
+        body: withoutRepeatedEntryDate(text, date) || text,
+        date,
+        precision: date.length === 10 ? "date" : date ? "month" : "unknown",
+        rawDate: header,
+        cell: c.a,
+      });
+    }
   };
   for (const c of cells) {
     if (phase === "progress" && c.col >= 18 && c.col <= 25)

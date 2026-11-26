@@ -539,7 +539,6 @@ export async function resolve(
       date: e.date || "",
       precision: e.date ? (e.date.length === 10 ? "date" : "month") : "unknown",
       rawDate: string(e.rawDate),
-      author: "",
       recorded: stamp(),
       voided: false,
       source: row.sheet + "!" + string(e.cell) + " · " + key,

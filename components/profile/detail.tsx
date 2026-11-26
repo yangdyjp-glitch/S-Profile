@@ -149,10 +149,9 @@ function Timeline({
             <article key={e.id}>
               <div className="timeline-meta">
                 <strong>{e.date || e.rawDate || "日期待确认"}</strong>
-                <span>{e.author || "原作者未知"}</span>
                 <span>第 {e.version} 版</span>
               </div>
-              <p>{e.body}</p>
+              {e.body && <p>{e.body}</p>}
               <div className="item-foot">
                 <small>
                   登记于 {timeLabel(e.recorded)}

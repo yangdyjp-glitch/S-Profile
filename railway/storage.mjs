@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, readdirSync } from "node:fs";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join, resolve, sep } from "node:path";
 import { DatabaseSync } from "node:sqlite";
+import { entryFormatMigration, entryFormatUpdates } from "./entry-migration.mjs";
 
 // The existing business and Drizzle auth layers share this subset of D1's API.
 class Statement {
@@ -65,6 +66,13 @@ function migrate(connection) {
       mark.run(file);
     });
   }
+  transaction(connection, () => {
+    if (applied.get(entryFormatMigration)) return;
+    const rows = connection.prepare("SELECT id,data FROM entries").all();
+    const update = connection.prepare("UPDATE entries SET data=? WHERE id=?");
+    for (const { id, data } of entryFormatUpdates(rows)) update.run(data, id);
+    mark.run(entryFormatMigration);
+  });
 }
 
 function fileBucket(directory) {

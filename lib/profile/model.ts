@@ -180,7 +180,6 @@ export interface Entry extends Row {
   date: string;
   precision: "date" | "month" | "unknown";
   rawDate: string;
-  author: string;
   recorded: string;
   voided: boolean;
   source: string;
@@ -337,7 +336,6 @@ export const labels: Record<string, string> = {
   aliases: "别名",
   missing: "历史待补字段",
   rawDate: "原日期文字",
-  author: "原录入人",
   source: "来源",
   precision: "日期精度",
   recorded: "登记时间",

@@ -318,7 +318,6 @@ function workbook(data: ExportData) {
         list.push(
           [
             e.date || e.rawDate || "日期待确认",
-            e.author || "作者未知",
             e.body,
             e.source,
           ]
@@ -349,7 +348,6 @@ function workbook(data: ExportData) {
         "业务日期",
         "精度",
         "原日期文字",
-        "原录入人",
         "登记时刻",
         "来源",
         "作废",
@@ -362,7 +360,6 @@ function workbook(data: ExportData) {
         e.date,
         e.precision,
         e.rawDate,
-        e.author,
         e.recorded,
         e.source,
         e.voided ? "已作废" : "",

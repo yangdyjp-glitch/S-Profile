@@ -1,9 +1,12 @@
+import assert from "node:assert/strict";
 import { createHash, randomBytes } from "node:crypto";
 import { mkdtempDisposable } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { serve } from "@hono/node-server";
 import { createRailwayApp } from "../railway/server.mjs";
+import { openStorage } from "../railway/storage.mjs";
+import { entryFormatMigration } from "../railway/entry-migration.mjs";
 
 export async function createRailwayTestRuntime() {
   const scratch = await mkdtempDisposable(join(tmpdir(), "sprofile-railway-"));
@@ -49,10 +52,40 @@ export async function createRailwayTestRuntime() {
       const { pathname, search } = new URL(url);
       return fetch(address + pathname + search, init);
     },
-    async restart() {
+    async restartWithLegacyEntry(id) {
       await stop();
+      const originalStore = await openStorage(scratch.path, config.databaseUrl);
+      const query = "SELECT data,version,updated_at FROM entries WHERE id=?";
+      const revision = "SELECT seq,after FROM revisions WHERE entity='entries' AND entity_id=? ORDER BY seq DESC LIMIT 1";
+      let original, historical;
+      try {
+        const db = originalStore.DB;
+        original = await db.prepare(query).bind(id).first();
+        historical = await db.prepare(revision).bind(id).first();
+        const entry = JSON.parse(original.data);
+        const fields = { body: entry.date + "：" + entry.body, author: "原表作者" };
+        historical.after = JSON.stringify({ ...JSON.parse(historical.after), ...fields });
+        await db.batch([
+          db.prepare("UPDATE entries SET data=? WHERE id=?").bind(JSON.stringify({ ...entry, ...fields }), id),
+          db.prepare("UPDATE revisions SET after=? WHERE seq=?").bind(historical.after, historical.seq),
+          db.prepare("DELETE FROM sprofile_migrations WHERE name=?").bind(entryFormatMigration),
+        ]);
+      } finally {
+        await originalStore.close();
+      }
       config.databaseUrl = databaseUrl;
       await start();
+      const migrated = await openStorage(scratch.path, config.databaseUrl);
+      try {
+        const current = await migrated.DB.prepare(query).bind(id).first();
+        assert.deepEqual(JSON.parse(current.data), JSON.parse(original.data));
+        assert.equal(current.version, original.version);
+        assert.equal(current.updated_at, original.updated_at);
+        assert.equal((await migrated.DB.prepare(revision).bind(id).first()).after, historical.after);
+        return historical.seq;
+      } finally {
+        await migrated.close();
+      }
     },
     async dispose() {
       await stop();

@@ -7,6 +7,7 @@ import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
 import { mergeWorkspace } from "../lib/profile/sync.ts";
+import { cleanStoredEntry, withoutRepeatedEntryDate } from "../lib/profile/entry-text.mjs";
 
 async function createSitesRuntime() {
   const root = resolve("dist/server");
@@ -83,6 +84,18 @@ async function call(path, method = "GET", data, opts = {}) {
   return value;
 }
 async function run() {
+  for (const label of ["09.29：", "9/29 ", "９．２９：", "2026年9月29日：", "09.29. "]) {
+    assert.equal(withoutRepeatedEntryDate(label + "约在10.03跟进（程）", "2026-09-29"), "约在10.03跟进（程）");
+  }
+  for (const body of ["09.29至10.03放假", "09.29 至 10.03 放假", "09.29 是截止日", "2025.09.29：原文", "09.28：待确认"]) {
+    assert.equal(withoutRepeatedEntryDate(body, "2026-09-29"), body);
+  }
+  assert.equal(withoutRepeatedEntryDate("09.29：待确认", ""), "09.29：待确认");
+  assert.equal(withoutRepeatedEntryDate("09.29：待确认", "2026-09"), "09.29：待确认");
+  assert.equal(withoutRepeatedEntryDate("2026年9月：约在10月", "2026-09"), "约在10月");
+  assert.equal(withoutRepeatedEntryDate("09.29：", "2026-09-29"), "");
+  assert.deepEqual(cleanStoredEntry({ date: "2026-09-29", body: "09.29：手动记录", author: "旧作者" }),
+    { date: "2026-09-29", body: "09.29：手动记录" });
   const setup = railway ? { headers: { "X-S-Profile-Setup": runtime.key } } : {};
   if (railway) {
     const health = await runtime.dispatchFetch(origin + "/healthz");
@@ -345,9 +358,10 @@ async function run() {
   sheet.getCell("S1").value = "4月";
   sheet.getCell("A2").value = "独立历史档案";
   sheet.getCell("C2").value = "2024-04";
-  sheet.getCell("R2").value = "早期进度";
+  sheet.getCell("R2").value = "04.15：早期进度（程）\n第二行补充\n04.16: 5月底前补材料";
   sheet.getCell("A3").value = "跨表同名";
-  sheet.getCell("S3").value = "缺年份";
+  sheet.getCell("S3").value = "04.18：缺年份\n04.19：仍待确认";
+  sheet.getCell("R3").value = "05.18：与列头月份冲突";
   sheet.getRow(3).hidden = true;
   const pause = wb.addWorksheet("暂停中");
   pause.getCell("A1").value = "姓名";
@@ -360,6 +374,8 @@ async function run() {
   applying.getCell("A1").value = "姓名";
   applying.getCell("A2").value = "学校候选";
   applying.getCell("P2").value = "仅内诺";
+  applying.getCell("A3").value = "出愿跟进示例";
+  applying.getCell("N3").value = "2026.09.29：10.03前交材料";
   const finished = wb.addWorksheet("已完成");
   finished.state = "hidden";
   finished.getCell("C1").value = "学生姓名";
@@ -388,6 +404,8 @@ async function run() {
   );
   assert.ok(raw.raw.hidden);
   assert.equal(raw.proposal.entries[0].precision, "unknown");
+  assert.deepEqual(raw.proposal.entries.map(({ date, body }) => [date, body]),
+    [["", "05.18：与列头月份冲突"], ["", "04.18：缺年份\n04.19：仍待确认"]]);
   const confirm = await call("imports/" + batch.id + "/resolve", "POST", {
     mode: "new",
     rowId: raw.id,
@@ -438,12 +456,22 @@ async function run() {
   const later = await call("workspace?since=" + replay.workspace.cursor);
   const merged = mergeWorkspace(mergeWorkspace(initial.data, replay.workspace), later);
   const current = await call("workspace");
+  const april = current.entries.filter((e) => e.source.startsWith("进行中!R2 ")).sort((a, b) => a.date.localeCompare(b.date));
+  assert.deepEqual(april.map(({ date, body }) => [date, body]),
+    [["2024-04-15", "早期进度（程）\n第二行补充"], ["2024-04-16", "5月底前补材料"]]);
+  assert.ok(current.entries.some((e) => e.kind === "application" && e.date === "2026-09-29" && e.body === "10.03前交材料"));
+  assert.ok(current.entries.every((e) => !Object.hasOwn(e, "author")));
   for (const table of Object.keys(current)) {
     const byId = (rows) => [...rows].sort((a, b) => a.id.localeCompare(b.id));
     assert.deepEqual(byId(merged[table]), byId(current[table]), "synchronized " + table);
   }
   assert.deepEqual(mergeWorkspace(merged, replay.workspace), merged, "overlapping changes cannot roll back data");
-  if (railway) await runtime.restart();
+  if (railway) {
+    const seq = await runtime.restartWithLegacyEntry(april[0].id);
+    const delta = await call("workspace?since=" + (seq - 1));
+    assert.equal(delta.full, false);
+    assert.deepEqual(delta.data.entries.find((e) => e.id === april[0].id), april[0]);
+  }
   const original = await call(
     "imports/" + batch.id + "/original",
     "GET",
@@ -502,6 +530,16 @@ async function run() {
       }
     });
     assert.ok(text.includes(long + "末尾"));
+    const details = output.getWorksheet("记录明细");
+    const columns = details.getRow(1).values;
+    assert.ok(!columns.includes("原录入人"));
+    const detail = details.getSheetValues().find((r) => r?.[1] === april[0].id);
+    assert.equal(detail[columns.indexOf("正文")], april[0].body);
+    assert.equal(detail[columns.indexOf("业务日期")], april[0].date);
+    assert.equal(detail[columns.indexOf("来源")], april[0].source);
+    const monthly = logs.getSheetValues().find((r) => r?.[1] === april[0].studentId)[headers.indexOf("2024-04")];
+    assert.match(monthly, /2024-04-15  早期进度（程）/u);
+    assert.doesNotMatch(monthly, /作者未知|04\.15：/u);
     assert.ok(output.getWorksheet("来源单元格").rowCount > 10);
     assert.ok(output.getWorksheet("历史变更").rowCount > 10);
   } finally {
