@@ -9,6 +9,7 @@ import {
   CirclePlay,
   Download,
   ListFilter,
+  Pencil,
   Plus,
   Search,
   Send,
@@ -26,6 +27,7 @@ import {
   type Application,
   type Entry,
   type Phase,
+  type Service,
 } from "../../lib/profile/model";
 import {
   defaultFilters,
@@ -33,7 +35,12 @@ import {
   type Filters,
 } from "../../lib/profile/list";
 import { Empty, ErrorBox, Field, request, useSite } from "./ui";
-import { ServiceEditor, StudentEditor } from "./editors";
+import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
+type ListField = ServiceListField | "name" | "manager" | "entry";
+const fieldNames: Record<ListField, string> = {
+  name: "姓名", major: "专业", projects: "合同项目", targets: "入学目标",
+  teacher: "教务", manager: "学管", progress: "申请进度", risk: "潜在风险", entry: "最新跟进",
+};
 const phaseIcons = {
   progress: CirclePlay,
   paused: CirclePause,
@@ -230,23 +237,34 @@ function SearchBox({
     </div>
   );
 }
-function AdmittedSchools({ admissions, nameOf }: {
+function AdmittedSchools({ service, admissions, nameOf }: {
+  service: Service;
   admissions?: Application[];
   nameOf: (id: string, blank: string) => string;
 }) {
-  if (!admissions?.length) return <span className="tag">合格学校待补</span>;
+  const { open } = useSite();
+  if (!admissions?.length) return (
+    <button className="cell-edit" aria-haspopup="dialog" aria-label="补录合格学校"
+      onClick={() => open("登记学校申请", <SchoolEditor s={service} />, true)}>
+      <span className="tag">合格学校待补</span>
+    </button>
+  );
   return (
     <ul className="admitted-schools" aria-label="合格学校">
       {admissions.map((a) => (
         <li key={a.id}>
-          <span className="tag positive">
-            {nameOf(a.school, "学校名称待补")}
-          </span>
-          <small>
-            {[nameOf(a.project, "项目待补"), a.program]
-              .filter(Boolean)
-              .join(" · ")}
-          </small>
+          <button className="cell-edit" aria-haspopup="dialog"
+            aria-label={"修改学校申请 · " + nameOf(a.school, "学校名称待补")}
+            onClick={() => open("编辑学校申请", <SchoolEditor s={service} old={a} />, true)}>
+            <span className="tag positive">
+              {nameOf(a.school, "学校名称待补")}
+            </span>
+            <small>
+              {[nameOf(a.project, "项目待补"), a.program]
+                .filter(Boolean)
+                .join(" · ")}
+            </small>
+          </button>
         </li>
       ))}
     </ul>
@@ -447,61 +465,70 @@ export function Workbench({
                 {rows.slice((current - 1) * 18, current * 18).map((s) => {
                   const st = students.get(s.studentId)!,
                     closure = completed ? currentClosure(s) : undefined,
-                    log = latest.get(
-                      st.id +
-                        "|" +
-                        (s.phase === "applying" ? "application" : "progress"),
-                    );
+                    entryKind = s.phase === "applying" ? "application" : "progress",
+                    log = latest.get(st.id + "|" + entryKind);
                   const projects = s.projects.map((p) => cat(p)).join("、") || "待补";
                   const targets = s.targets.join(" / ") || "目标待补";
                   const teacher = cat(s.teacher, "待分配");
                   const manager = cat(st.manager, "待分配");
                   const updatedAt = Date.parse(s.updatedAt);
+                  function edit(field: ListField, anchor: HTMLButtonElement) {
+                    const title = (field === "entry" && !log ? "新增" : "修改") + fieldNames[field] + " · " + st.name;
+                    let editor;
+                    if (field === "name" || field === "manager") {
+                      editor = <StudentEditor old={st} field={field} />;
+                    } else if (field === "entry") {
+                      editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
+                    } else {
+                      editor = <ServiceEditor old={s} field={field} />;
+                    }
+                    open(title, editor, false, anchor);
+                  }
+                  const fieldButton = (field: ListField, value: string, format = "one-line") => (
+                    <button type="button" className="cell-edit" aria-haspopup="dialog"
+                      aria-label={fieldNames[field] + " · " + st.name + " · " + value}
+                      title={value} onClick={(e) => edit(field, e.currentTarget)}>
+                      <span className={format} title={value}>{value}</span>
+                    </button>
+                  );
                   return (
                     <tr key={s.id}>
                       <td>
-                        <button
-                          className="row-name one-line"
-                          title={st.name}
-                          onClick={() => go("service/" + s.id)}
-                        >
-                          {st.name}
-                        </button>
+                        <div className="name-actions">
+                          <button className="row-name one-line" title={st.name} onClick={() => go("service/" + s.id)}>
+                            {st.name}
+                          </button>
+                          <button className="name-edit" title="修改姓名" aria-label={"修改姓名 · " + st.name}
+                            aria-haspopup="dialog" onClick={(e) => edit("name", e.currentTarget)}>
+                            <Pencil size={13} aria-hidden="true" />
+                          </button>
+                        </div>
                       </td>
-                      <td>
-                        <span className="two-lines" title={s.major || undefined}>
-                          {s.major || "专业待补"}
-                        </span>
-                      </td>
+                      <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
                       <td className="contract-cell">
-                        <span className="one-line" title={projects}>{projects}</span>
-                        <small className="one-line" title={targets}>{targets}</small>
+                        {fieldButton("projects", projects)}
+                        <small>{fieldButton("targets", targets)}</small>
                       </td>
-                      <td className="one-line" title={teacher}>{teacher}</td>
-                      <td className="one-line" title={manager}>{manager}</td>
-                      <td>
-                        <span className="tag one-line" title={s.progress || undefined}>
-                          {s.progress || "待补"}
-                        </span>
-                      </td>
-                      <td className="one-line" title={s.risk || undefined}>
-                        {s.risk || "风险待补"}
-                      </td>
+                      <td>{fieldButton("teacher", teacher)}</td>
+                      <td>{fieldButton("manager", manager)}</td>
+                      <td>{fieldButton("progress", s.progress || "待补", "tag one-line")}</td>
+                      <td>{fieldButton("risk", s.risk || "风险待补")}</td>
                       {completed && (
                         <td>
                           {closure?.kind === "admission" ? (
-                            <AdmittedSchools admissions={admissions.get(s.id)} nameOf={cat} />
+                            <AdmittedSchools service={s} admissions={admissions.get(s.id)} nameOf={cat} />
+                          ) : closure ? (
+                            <button className="cell-edit" aria-haspopup="dialog" title="更正结案情况"
+                              onClick={(e) => open("撤回误结案 · " + st.name, <ActionEditor s={s} action="reopen" />, false, e.currentTarget)}>
+                              <span className="tag">{closureKinds[closure.kind]}</span>
+                            </button>
                           ) : (
-                            <span className="tag">{closure ? closureKinds[closure.kind] : "待补"}</span>
+                            <span className="tag">待补</span>
                           )}
                           {!!closure?.targets.length && <small>{closure.targets.join("、")}</small>}
                         </td>
                       )}
-                      <td>
-                        <span className="two-lines" title={log?.body}>
-                          {log?.body || "暂无记录"}
-                        </span>
-                      </td>
+                      <td>{fieldButton("entry", log?.body || "暂无记录", "two-lines")}</td>
                       <td className="updated-col tabular">
                         {Number.isFinite(updatedAt) ? (
                           <time dateTime={s.updatedAt}>{updateMonthDay.format(updatedAt)}</time>

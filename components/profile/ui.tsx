@@ -22,7 +22,7 @@ import {
   type Workspace,
 } from "../../lib/profile/model";
 export type Values = Record<string, any>;
-export type View = { title: string; node: ReactNode; wide?: boolean };
+export type View = { title: string; node: ReactNode; wide?: boolean; anchor?: HTMLButtonElement };
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -74,7 +74,7 @@ export const SiteContext = createContext<{
   user: Account;
   refresh: () => Promise<void>;
   write: WorkspaceWrite;
-  open: (title: string, node: ReactNode, wide?: boolean) => void;
+  open: (title: string, node: ReactNode, wide?: boolean, anchor?: HTMLButtonElement) => void;
   close: () => void;
   notice: (s: string) => void;
   go: (path: string) => void;
@@ -92,14 +92,40 @@ export function Dialog({ view, close }: { view: View; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null),
     label = useId();
   useEffect(() => {
-    const d = ref.current;
-    d?.showModal();
-    return () => d?.close();
-  }, []);
+    const d = ref.current!;
+    d.showModal();
+    const anchor = view.anchor;
+    if (!anchor) return () => d.close();
+
+    const position = () => {
+      const { left, top, bottom } = anchor.getBoundingClientRect();
+      const margin = 8;
+      const maxLeft = window.innerWidth - d.offsetWidth - margin;
+      const maxTop = window.innerHeight - d.offsetHeight - margin;
+      const above = top - d.offsetHeight - margin;
+      const y = bottom + margin > maxTop && above >= margin ? above : bottom + margin;
+      d.style.setProperty("--cell-left", Math.max(margin, Math.min(left, maxLeft)) + "px");
+      d.style.setProperty("--cell-top", Math.max(margin, Math.min(y, maxTop)) + "px");
+    };
+    position();
+    const observer = new ResizeObserver(position);
+    observer.observe(d);
+    window.addEventListener("resize", position);
+    window.addEventListener("scroll", position, true);
+    const input = d.querySelector<HTMLElement>("textarea") ??
+      d.querySelector<HTMLElement>("input:not(:disabled), select:not(:disabled)");
+    input?.focus({ preventScroll: true });
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", position);
+      window.removeEventListener("scroll", position, true);
+      d.close();
+    };
+  }, [view.anchor]);
   return (
     <dialog
       ref={ref}
-      className={view.wide ? "dialog wide" : "dialog"}
+      className={"dialog" + (view.wide ? " wide" : "") + (view.anchor ? " cell-dialog" : "")}
       aria-labelledby={label}
       onCancel={close}
       onClick={(e) => {
@@ -160,6 +186,7 @@ export function FormShell({
   children,
   save,
   submit = "保存",
+  unchanged = false,
   successMessage = "已保存",
   sources = [],
   after,
@@ -167,6 +194,7 @@ export function FormShell({
   children: ReactNode;
   save: (versions: Values, key: string, write: WorkspaceWrite) => Promise<any>;
   submit?: string;
+  unchanged?: boolean;
   successMessage?: string;
   sources?: { path: string; row: Values; key: string }[];
   after?: (r: any) => void;
@@ -180,7 +208,7 @@ export function FormShell({
     formRef = useRef<HTMLFormElement>(null);
   async function send(ev: FormEvent) {
     ev.preventDefault();
-    if (busy) return;
+    if (busy || unchanged) return;
     setBusy(true);
     setError("");
     const payload =
@@ -259,7 +287,7 @@ export function FormShell({
         <button type="button" className="btn" onClick={close}>
           取消
         </button>
-        <button className="btn primary" disabled={busy || !!latest}>
+        <button className="btn primary" disabled={busy || !!latest || unchanged}>
           {busy ? (
             <LoaderCircle className="spin" size={16} />
           ) : (

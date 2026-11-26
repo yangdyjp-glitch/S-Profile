@@ -1,4 +1,4 @@
-import { choices, currentClosure, identity, labels } from "./model";
+import { choices, currentClosure, identity, labels, requiresActiveStatus } from "./model";
 import type { Application, Catalog, Service, Student } from "./model";
 export class Problem extends Error {
   constructor(
@@ -135,8 +135,7 @@ export function validateService(
   if (
     s.phase !== "completed" &&
     s.status === "未开始" &&
-    (["发邮件中", "拿到内诺", "出愿中", "完成申请"].includes(s.progress) ||
-      apps.some((a) => !a.voided))
+    (requiresActiveStatus(s.progress) || apps.some((a) => !a.voided))
   )
     fail("status", "已经开始联系教授或正式申请，请改选当期申请或延期");
   if (

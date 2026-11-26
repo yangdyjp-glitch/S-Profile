@@ -8,6 +8,7 @@ import {
   emptyStudent,
   entryKinds,
   phases,
+  requiresActiveStatus,
   roles,
   tokyoDay,
   type Application,
@@ -67,11 +68,13 @@ function studentPayload(v: Values) {
     ? { ...v, jlpt: "", toefl: "", ielts: "", toeic: "" }
     : v;
 }
-export function StudentEditor({ old }: { old?: Student }) {
+export function StudentEditor({ old, field }: { old?: Student; field?: "name" | "manager" }) {
   const b = useValues(old || emptyStudent),
     { go } = useSite();
+  const updates = changed(old, studentPayload(b.v), field ? [field] : Object.keys(emptyStudent));
   return (
     <FormShell
+      unchanged={!!field && !Object.keys(updates).length}
       sources={
         old
           ? [{ path: "students/" + old.id, row: old, key: "expectedVersion" }]
@@ -82,7 +85,7 @@ export function StudentEditor({ old }: { old?: Student }) {
           old ? "students/" + old.id : "students",
           old ? "PATCH" : "POST",
           {
-            ...changed(old, studentPayload(b.v), Object.keys(emptyStudent)),
+            ...updates,
             expectedVersion: old?.version,
             ...vs,
           },
@@ -93,59 +96,61 @@ export function StudentEditor({ old }: { old?: Student }) {
         if (!old) go("student/" + r.id);
       }}
     >
-      <StudentFields b={b} old={old} />
+      {field === "name" && <Text b={b} k="name" required />}
+      {field === "manager" && <CatalogField b={b} k="manager" kind="manager" />}
+      {!field && <StudentFields b={b} old={old} />}
     </FormShell>
   );
 }
-function ServiceFields({ b, old }: { b: Binder; old?: Service }) {
-  const req = (k: string) => !old?.missing?.includes(k);
-  return (
-    <div className="form-grid">
-      <CatalogField
-        b={b}
-        k="channel"
-        kind="channel"
-        required={req("channel")}
-        editable
-      />
-      <CatalogField b={b} k="teacher" kind="teacher" />
-      <CatalogField
-        b={b}
-        k="projects"
-        kind="project"
-        required={req("projects")}
-        multiple
-        editable
-      />
-      <Text b={b} k="major" wide required={req("major")} />
-      <Months
-        b={b}
-        k="original"
-        required={req("original")}
-        disabled={!!old?.original.length}
-      />
-      <Select
-        b={b}
-        k="status"
-        items={[
-          ...choices.status,
-          ...(old?.status === "暂停中" ? ["暂停中"] : []),
-        ]}
-        required={req("status")}
+export type ServiceListField = "major" | "projects" | "targets" | "teacher" | "progress" | "risk";
+type ServiceFormKey = keyof typeof emptyService;
+function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField): ServiceFormKey[] {
+  const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
+  if (!field) return [
+    "channel", "teacher", "projects", "major", "original", ...statusFields,
+    "collection", "production", "progress", "risk", "publication", "special", "notes",
+  ];
+  const active = old?.phase === "progress" || old?.phase === "applying";
+  if (field === "targets" && active) {
+    const contractTarget = v.status === "未开始" || v.status === "当期申请";
+    return ["status", contractTarget ? "original" : "targets"];
+  }
+  if (field === "progress" && active && old.status === "未开始" && requiresActiveStatus(v.progress)) {
+    return ["progress", ...statusFields];
+  }
+  return [field];
+}
+function ServiceField({ b, k, old, quick }: { b: Binder; k: ServiceFormKey; old?: Service; quick: boolean }) {
+  const required = !old?.missing?.includes(k);
+  switch (k) {
+    case "channel":
+      return <CatalogField b={b} k={k} kind="channel" required={required} editable />;
+    case "teacher":
+      return <CatalogField b={b} k={k} kind="teacher" />;
+    case "projects":
+      return <CatalogField b={b} k={k} kind="project" required={required} multiple editable />;
+    case "major":
+      return <Text b={b} k={k} type={quick ? "area" : "text"} wide required={required} />;
+    case "original":
+      return (
+        <>
+          <Months b={b} k={k} required={required} disabled={!!old?.original.length} />
+          {quick && !!old?.original.length && <small>当前目标采用原合同批次。调整到更晚的批次时，请选择“延期”。</small>}
+        </>
+      );
+    case "targets":
+      return <Months b={b} k={k} required={required} />;
+    case "status":
+      return <Select b={b} k={k} required={required}
         disabled={old?.phase === "paused" || old?.phase === "completed"}
-      />
-      {b.v.status === "延期" && (
-        <Months b={b} k="targets" required={req("targets")} />
-      )}
-      {(
-        ["collection", "production", "progress", "risk", "publication"] as const
-      ).map((k) => (
-        <Select key={k} b={b} k={k} items={choices[k]} required={req(k)} />
-      ))}
-      <Text b={b} k="special" type="area" wide />
-      <Text b={b} k="notes" type="area" wide />
-    </div>
-  );
+        items={old?.status === "暂停中" ? [...choices.status, "暂停中"] : choices.status} />;
+    case "special":
+    case "notes":
+      return <Text b={b} k={k} type="area" wide />;
+    default:
+      return <Select b={b} k={k} items={choices[k]} required={required}
+        title={quick && k === "risk" ? "潜在风险" : undefined} />;
+  }
 }
 function SchoolFields({ b, old }: { b: Binder; old?: Application }) {
   return (
@@ -222,9 +227,11 @@ function ClosureFields({ b }: { b: Binder }) {
 export function ServiceEditor({
   old,
   studentId,
+  field,
 }: {
   old?: Service;
   studentId?: string;
+  field?: ServiceListField;
 }) {
   const { w, go } = useSite(),
     b = useValues(old || emptyService),
@@ -241,8 +248,11 @@ export function ServiceEditor({
     !old &&
     (b.v.progress === "完成申请" ||
       (mode.v.phase === "completed" && cl.v.kind === "admission"));
+  const keys = serviceFormKeys(old, b.v, field);
+  const updates = changed(old, b.v, field ? keys : Object.keys(emptyService));
   return (
     <FormShell
+      unchanged={!!field && !Object.keys(updates).length}
       sources={
         old
           ? [{ path: "services/" + old.id, row: old, key: "expectedVersion" }]
@@ -258,7 +268,7 @@ export function ServiceEditor({
               "services/" + old.id,
               "PATCH",
               {
-                ...changed(old, b.v, Object.keys(emptyService)),
+                ...updates,
                 expectedVersion: old.version,
                 ...vs,
               },
@@ -314,7 +324,9 @@ export function ServiceEditor({
           <h3 className="form-head">本次服务</h3>
         </>
       )}
-      <ServiceFields b={b} old={old} />
+      <div className={field ? "form-stack" : "form-grid"}>
+        {keys.map((k) => <ServiceField key={k} k={k} b={b} old={old} quick={!!field} />)}
+      </div>
       {!old && (
         <>
           <h3 className="form-head">建档阶段</h3>

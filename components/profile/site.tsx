@@ -220,8 +220,8 @@ export default function Site() {
     active =
       page === "service" ? "services" : page === "student" ? "students" : page,
     section = nav.find((n) => n.key === active);
-  const open = (title: string, node: React.ReactNode, wide = false) => {
-    setView({ title, node, wide });
+  const open = (title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
+    setView({ title, node, wide, anchor });
     setProfile(false);
     setMenu(false);
   };

@@ -93,6 +93,8 @@ export const entryKinds = {
   progress: "常规进度",
   application: "出愿情况",
 } as const;
+export const requiresActiveStatus = (progress: string) =>
+  ["发邮件中", "拿到内诺", "出愿中", "完成申请"].includes(progress);
 export type EntryKind = keyof typeof entryKinds;
 export interface Row {
   id: string;
