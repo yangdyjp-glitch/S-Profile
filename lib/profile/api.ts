@@ -17,7 +17,8 @@ import {
   upload,
 } from "./imports";
 import { exportData } from "./exports";
-import { all, commit, history, isUniqueViolation, one, snapshot, type Input } from "./store";
+import type { Catalog } from "./model";
+import { all, catalogItem, commit, history, isUniqueViolation, one, snapshot, type Input } from "./store";
 import { Problem } from "./validation";
 
 const json = (data: unknown, status = 200) =>
@@ -174,8 +175,11 @@ export async function api(
         return json(await all(db, "entries", "WHERE student_id=?", [key]));
       if (section === "services" && child === "applications")
         return json(await all(db, "applications", "WHERE service_id=?", [key]));
-      if (section === "catalogs")
-        return json(await all(db, "catalogs", "WHERE kind=?", [key]));
+      if (section === "catalogs") {
+        if (child) return json(await catalogItem(db, key, child));
+        const items = await all<Catalog>(db, "catalogs", "WHERE kind=?", [key]);
+        return json(items.filter((c) => !c.deleted));
+      }
       if (
         section === "students" ||
         section === "services" ||

@@ -188,6 +188,7 @@ export interface Catalog extends Row {
   name: string;
   active: boolean;
   aliases: string[];
+  deleted?: boolean;
 }
 export interface Revision {
   seq: number;
@@ -288,6 +289,7 @@ export const currentClosure = (s: Service) =>
   [...s.closures].reverse().find((c) => !c.undone);
 export const labelOf = (list: Catalog[], id: string, fallback = "待补") =>
   list.find((c) => c.id === id)?.name || fallback;
+export const catalogOptionLabel = (c: Catalog) => c.deleted ? c.name + "（已删除）" : c.name;
 export const labels: Record<string, string> = {
   name: "学生姓名",
   orderMonth: "首次签单年月",

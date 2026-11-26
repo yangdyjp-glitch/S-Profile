@@ -1,9 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
-import { catalogs, type Account, type Kind } from "../../lib/profile/model";
+import { catalogs, type Account, type Catalog, type Kind } from "../../lib/profile/model";
 import { CatalogEditor } from "./editors";
 import {
+  ApiError,
   Empty,
   ErrorBox,
   FormShell,
@@ -14,6 +15,34 @@ import {
   useValues,
 } from "./ui";
 import { PageHead } from "./workbench";
+function DeleteCatalog({ item }: { item: Catalog }) {
+  const { refresh } = useSite();
+  return (
+    <FormShell
+      submit="确认删除"
+      successMessage="名册项已删除"
+      save={async (_, key) => {
+        try {
+          return await request(
+            "catalogs/" + item.kind + "/" + item.id,
+            "DELETE",
+            { expectedVersion: item.version },
+            key,
+          );
+        } catch (e) {
+          if (e instanceof ApiError && (e.status === 404 || e.status === 409)) {
+            await refresh();
+            throw new Error("该条目已变更，请关闭窗口后从最新名册重新选择。");
+          }
+          throw e;
+        }
+      }}
+    >
+      <p>确认从{catalogs[item.kind]}名册删除「<strong>{item.name}</strong>」？</p>
+      <p>此项会从新增资料的选项中移除。已有档案和奖励记录会保留原名称。</p>
+    </FormShell>
+  );
+}
 export function CatalogPage() {
   const { w, open } = useSite(),
     [kind, setKind] = useState<Kind>("channel"),
@@ -21,7 +50,8 @@ export function CatalogPage() {
   const items = w.catalogs
     .filter(
       (c) =>
-        c.kind === kind && [c.name, ...c.aliases].some((n) => n.includes(q)),
+        !c.deleted && c.kind === kind &&
+        [c.name, ...c.aliases].some((n) => n.includes(q)),
     )
     .sort(
       (a, b) =>
@@ -95,17 +125,25 @@ export function CatalogPage() {
                       </span>
                     </td>
                     <td>
-                      <button
-                        className="row-action edit"
-                        onClick={() =>
-                          open(
-                            "编辑" + catalogs[kind],
-                            <CatalogEditor kind={kind} old={c} />,
-                          )
-                        }
-                      >
-                        编辑
-                      </button>
+                      <div className="actions">
+                        <button
+                          className="row-action edit"
+                          onClick={() =>
+                            open("编辑" + catalogs[kind], <CatalogEditor kind={kind} old={c} />)
+                          }
+                        >
+                          编辑
+                        </button>
+                        <button
+                          className="row-action deactivate"
+                          aria-label={"删除" + catalogs[kind] + "「" + c.name + "」"}
+                          onClick={() =>
+                            open("删除" + catalogs[kind], <DeleteCatalog item={c} />)
+                          }
+                        >
+                          删除
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

@@ -39,7 +39,7 @@ import {
   validateService,
   validateStudent,
 } from "./validation";
-import { all, bump, expect, meta, one, record, type Input } from "./store";
+import { all, bump, catalogItem, expect, meta, one, record, type Input } from "./store";
 export interface Plan {
   sql: D1PreparedStatement[];
   result: { id: string; studentId?: string; serviceId?: string };
@@ -173,10 +173,19 @@ export async function business(
     list = await all<Catalog>(db, "catalogs");
   let sql: D1PreparedStatement[] = [];
   if (section === "catalogs" && Object.hasOwn(catalogs, key)) {
-    const old = child ? await one<Catalog>(db, "catalogs", child) : null;
+    const creating = method === "POST" && p.length === 2;
+    const changing = (method === "PATCH" || method === "DELETE") && p.length === 3;
+    if (!creating && !changing) throw new Problem(404, "名册操作不存在");
+    const old = child ? await catalogItem(db, key, child) : null;
     if (old) {
       expect(old, input.expectedVersion);
-      if (old.kind !== key) throw new Problem(404, "名册不存在");
+      if (method === "DELETE") {
+        const removed = { ...bump(old), active: false, deleted: true };
+        return {
+          sql: record(db, "catalogs", old, removed, actor, "删除" + catalogs[old.kind]),
+          result: { id: old.id },
+        };
+      }
     }
     const c: Catalog = {
       ...(old ? bump(old) : meta(id("C"))),

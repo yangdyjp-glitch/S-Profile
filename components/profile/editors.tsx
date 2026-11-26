@@ -1,5 +1,6 @@
 "use client";
 import {
+  catalogOptionLabel,
   choices,
   closureKinds,
   emptyApplication,
@@ -536,9 +537,13 @@ export function RewardEditor({
   const { w } = useSite(),
     st = w.students.find((x) => x.id === s.studentId)!,
     reward = s.rewards[role],
+    recipients = w.catalogs.filter(
+      (c) => c.kind === role && (c.active || c.id === reward?.recipient),
+    ),
+    assigned = role === "teacher" ? s.teacher : st.manager,
     b = useValues({
       recipient:
-        reward?.recipient || (role === "teacher" ? s.teacher : st.manager),
+        reward?.recipient || (recipients.some((c) => c.id === assigned) ? assigned : ""),
       month: reward?.month || "",
     });
   return (
@@ -559,12 +564,7 @@ export function RewardEditor({
           k="recipient"
           title={roles[role] + "奖励归属人"}
           required
-          items={w.catalogs
-            .filter(
-              (c) =>
-                c.kind === role && (c.active || c.id === reward?.recipient),
-            )
-            .map((c) => [c.id, c.name])}
+          items={recipients.map((c) => [c.id, catalogOptionLabel(c)])}
         />
         <Text b={b} k="month" type="month" title="计入工资年月（选填）" />
       </div>

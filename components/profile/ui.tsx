@@ -11,6 +11,7 @@ import {
 } from "react";
 import { Check, ClipboardList, LoaderCircle, Plus, X } from "lucide-react";
 import {
+  catalogOptionLabel,
   catalogs,
   labelOf,
   labels,
@@ -155,12 +156,14 @@ export function FormShell({
   children,
   save,
   submit = "保存",
+  successMessage = "已保存",
   sources = [],
   after,
 }: {
   children: ReactNode;
   save: (versions: Values, key: string) => Promise<any>;
   submit?: string;
+  successMessage?: string;
   sources?: { path: string; row: Values; key: string }[];
   after?: (r: any) => void;
 }) {
@@ -185,7 +188,7 @@ export function FormShell({
       const result = await save(versions, pending.current!.key);
       await refresh();
       close();
-      notice("已保存");
+      notice(successMessage);
       after?.(result);
     } catch (e) {
       setError((e as Error).message);
@@ -483,7 +486,7 @@ export function CatalogField({
                   )
                 }
               />
-              {c.name}
+              {catalogOptionLabel(c)}
             </label>
           ))}
         </div>
@@ -518,7 +521,7 @@ export function CatalogField({
                       setSearch(false);
                     }}
                   >
-                    {c.name}
+                    {catalogOptionLabel(c)}
                   </button>
                 ))}
               <button
@@ -545,7 +548,7 @@ export function CatalogField({
           <option value="">{required ? "请选择" : "待分配"}</option>
           {items.map((c) => (
             <option value={c.id} key={c.id}>
-              {c.name}
+              {catalogOptionLabel(c)}
             </option>
           ))}
         </select>

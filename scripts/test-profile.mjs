@@ -366,6 +366,46 @@ async function run() {
   assert.ok(confirm.studentId);
   const revisit = await call("imports/" + batch.id + "/review/" + raw.id);
   assert.equal(revisit.state, "linked");
+
+  const catalogSnapshot = (await call("workspace")).catalogs;
+  const deletedItems = [
+    service.channel, before.teacher, student.manager, service.projects[0], S.id,
+  ].map((id) => catalogSnapshot.find((c) => c.id === id));
+  await call("catalogs/teacher/" + S.id, "DELETE", { expectedVersion: 1 }, { status: 404 });
+  await call("catalogs/school", "DELETE", {}, { status: 404 });
+  await call("catalogs/school/" + S.id, "DELETE", { expectedVersion: 0 }, { status: 409 });
+  await call("catalogs/school/" + S.id, "DELETE", { expectedVersion: 1 }, { cookie: "", status: 401 });
+  for (const item of deletedItems) {
+    const path = "catalogs/" + item.kind, removeKey = randomUUID();
+    const remove = () => call(path + "/" + item.id, "DELETE",
+      { expectedVersion: item.version }, { key: removeKey });
+    assert.deepEqual(await remove(), { id: item.id });
+    assert.deepEqual(await remove(), { id: item.id });
+    assert.ok(!(await call(path)).some((c) => c.id === item.id));
+    await call(path + "/" + item.id, "GET", undefined, { status: 404 });
+    const history = await call("history/catalogs/" + item.id);
+    assert.equal(history.filter((r) => JSON.parse(r.after).deleted).length, 1);
+  }
+  await call("catalogs/school/" + S.id, "PATCH", { active: true, expectedVersion: 2 }, { status: 404 });
+  const replacement = await call("catalogs/school", "POST", { name: "合成大学", aliases: ["合大"] });
+  assert.notEqual(replacement.id, S.id);
+  await call("services/" + vid + "/applications", "POST", {
+    expectedVersion: (await svc()).version, school: S.id, project: service.projects[1],
+  }, { status: 422 });
+  await call("applications/" + a1.id, "PATCH", {
+    expectedVersion: 1, serviceVersion: (await svc()).version, program: "保留历史校名",
+  });
+  assert.equal((await svc()).rewards.teacher.recipient, before.teacher);
+
+  const remaining = pending.rows.find((r) => r.name === "跨表同名" && r.sheet === "暂停中");
+  const liveProject = catalogSnapshot.find((c) => c.id === service.projects[1]);
+  const imported = await call("imports/" + batch.id + "/resolve", "POST", {
+    rowId: remaining.id,
+    mode: "existing",
+    studentId: confirm.studentId,
+    proposal: { schools: [{ name: "合大", project: liveProject.name, submitted: true }] },
+  });
+  assert.equal((await call("services/" + imported.serviceId + "/applications"))[0].school, replacement.id);
   if (railway) await runtime.restart();
   const original = await call(
     "imports/" + batch.id + "/original",
@@ -402,6 +442,12 @@ async function run() {
     assert.equal(response.ok, true);
     const output = new ExcelJS.Workbook();
     await output.xlsx.load(response.buffer);
+    const roster = output.getWorksheet("业务名册").getSheetValues();
+    assert.ok(deletedItems.every((item) => !roster.some((r) => r?.[1] === item.id)));
+    assert.ok(roster.some((r) => r?.[1] === replacement.id));
+    const schoolRow = output.getWorksheet("学校申请").getSheetValues().find((r) => r?.[1] === a1.id);
+    assert.equal(schoolRow[3], "合成大学");
+    assert.equal(schoolRow[4], deletedItems.find((c) => c.kind === "project").name);
     const logs = output.getWorksheet("常规进度");
     const headers = logs.getRow(1).values;
     assert.ok(
@@ -424,6 +470,18 @@ async function run() {
   } finally {
     await worker.terminate();
   }
+  const oldChannel = deletedItems.find((c) => c.kind === "channel");
+  const deletedNameBook = new ExcelJS.Workbook();
+  deletedNameBook.addWorksheet("进行中").addRows([
+    ["学生姓名", "甲方"], ["验收旧渠道", oldChannel.name],
+  ]);
+  const checkBatch = await call("imports", "POST", await deletedNameBook.xlsx.writeBuffer(), uploadOpts);
+  const checkPath = "imports/" + checkBatch.id;
+  await call(checkPath + "/prepare", "POST", {});
+  await call(checkPath + "/advance", "POST", {});
+  const unresolved = await call(checkPath + "/review");
+  assert.ok(unresolved.rows[0].issues.some((issue) => issue.includes(oldChannel.name) && issue.includes("删除")));
+  assert.ok(!(await call("catalogs/channel")).some((c) => c.name === oldChannel.name));
   cookie = adminCookie;
   await call("admin/users/" + staff.id, "PATCH", {
     action: "reset",

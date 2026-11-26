@@ -288,12 +288,13 @@ export async function resolve(
   const list = await all<Catalog>(db, "catalogs");
   const mapped = (kind: Kind, name: string) => {
     if (!name) return "";
-    const hit = list.find(
-      (c) =>
-        c.kind === kind &&
-        (c.name === name || c.id === name || c.aliases.includes(name)),
-    );
+    const matches = (c: Catalog) => c.kind === kind &&
+      (c.name === name || c.id === name || c.aliases.includes(name));
+    const hit = list.find((c) => !c.deleted && matches(c));
     if (hit) return hit.id;
+    const deleted = list.find(matches);
+    if (deleted && (auto || deleted.id === name))
+      fail(kind, `「${deleted.name}」已从${catalogs[kind]}名册删除，请核对原表名称`);
     const c: Catalog = {
       ...meta(id("C")),
       kind,

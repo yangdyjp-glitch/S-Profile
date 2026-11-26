@@ -48,6 +48,12 @@ export async function one<T extends Row>(
   if (!r) throw new Problem(404, "这条记录不存在");
   return unpack<T>(r);
 }
+export async function catalogItem(db: D1Database, kind: string, id: string) {
+  const item = await one<Catalog>(db, "catalogs", id);
+  if (item.kind !== kind || item.deleted)
+    throw new Problem(404, "名册项不存在或已删除");
+  return item;
+}
 export const tables: Table[] = [
   "students",
   "services",
@@ -82,6 +88,23 @@ export function guard(db: D1Database, test: string, ...params: unknown[]) {
     .prepare(`INSERT INTO guards(ok) SELECT 0 WHERE NOT (${test})`)
     .bind(...params);
 }
+// Live name keys are lowercase. A separate key frees the name while keeping its historical ID.
+const deletedCatalogKey = (id: string) => "DELETED:" + id;
+function catalogReferences(row: Entity | null): Record<string, string[]> {
+  if (!row) return {};
+  if ("manager" in row) return { manager: [row.manager] };
+  if ("school" in row) return { school: [row.school], project: [row.project] };
+  if ("rewards" in row) {
+    return {
+      channel: [row.channel],
+      teacher: [row.teacher],
+      projects: row.projects,
+      teacherReward: [row.rewards.teacher?.recipient || ""],
+      managerReward: [row.rewards.manager?.recipient || ""],
+    };
+  }
+  return {};
+}
 export function record(
   db: D1Database,
   table: Table,
@@ -98,7 +121,9 @@ export function record(
   if (table === "catalogs") {
     const c = next as Catalog;
     extras.kind = c.kind;
-    extras.name_key = c.name.trim().toLowerCase();
+    extras.name_key = c.deleted
+      ? deletedCatalogKey(c.id)
+      : c.name.trim().toLowerCase();
   }
   if (table === "services" || table === "entries")
     extras.student_id = (next as Service | Entry).studentId;
@@ -108,6 +133,21 @@ export function record(
     vals = Object.values(extras),
     data = JSON.stringify(body);
   const sqls: D1PreparedStatement[] = [];
+  // A deletion can commit between form validation and this write. Keep prior links valid.
+  const previousRefs = catalogReferences(prior);
+  const newRefs = new Set(
+    Object.entries(catalogReferences(next)).flatMap(([field, ids]) =>
+      ids.filter((id) => id && !previousRefs[field]?.includes(id)),
+    ),
+  );
+  for (const id of newRefs) {
+    sqls.push(guard(
+      db,
+      "EXISTS(SELECT 1 FROM catalogs WHERE id=? AND name_key<>?)",
+      id,
+      deletedCatalogKey(id),
+    ));
+  }
   if (prior) {
     sqls.push(
       guard(

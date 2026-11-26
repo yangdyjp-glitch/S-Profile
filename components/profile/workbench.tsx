@@ -15,6 +15,7 @@ import {
   X,
 } from "lucide-react";
 import {
+  catalogOptionLabel,
   choices,
   closureKinds,
   currentClosure,
@@ -288,7 +289,9 @@ export function Workbench({
       title: ["教务", "学管", "甲方渠道", "合同项目"][i],
       items: [
         ...(["teacher", "manager"].includes(k) ? [["none", "待分配"]] : []),
-        ...w.catalogs.filter((c) => c.kind === k).map((c) => [c.id, c.name]),
+        ...w.catalogs
+          .filter((c) => c.kind === k && (!c.deleted || c.id === f[k]))
+          .map((c) => [c.id, catalogOptionLabel(c)]),
       ],
     })),
     { k: "status", title: "学生状况", items: [...choices.status, "暂停中"] },

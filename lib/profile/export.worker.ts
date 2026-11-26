@@ -401,7 +401,7 @@ function workbook(data: ExportData) {
     table(
       "业务名册",
       ["编号", "类别", "名称", "别名", "使用情况"],
-      data.catalogs.map((c) => [
+      data.catalogs.filter((c) => !c.deleted).map((c) => [
         c.id,
         c.kind,
         c.name,
