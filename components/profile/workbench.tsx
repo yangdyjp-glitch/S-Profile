@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useRef, useState } from "react";
+import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
   CheckCheck,
@@ -395,24 +395,26 @@ function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf }:
 export function Workbench({
   filters: f,
   setFilters,
-  page,
-  setPage,
+  scrollPositionRef,
 }: {
   filters: Filters;
   setFilters: (v: Filters) => void;
-  page: number;
-  setPage: (page: number) => void;
+  scrollPositionRef: RefObject<{ top: number; left: number }>;
 }) {
   const { w, open } = useSite(),
     [more, setMore] = useState(false);
-  const set = (k: keyof Filters, v: string) => {
-    setFilters({ ...f, [k]: v });
-    setPage(1);
+  const viewport = useRef<HTMLDivElement>(null);
+  const changeFilters = (next: Filters) => {
+    scrollPositionRef.current = { top: 0, left: 0 };
+    setFilters(next);
   };
+  const set = (k: keyof Filters, v: string) => changeFilters({ ...f, [k]: v });
   const completed = f.phase === "completed";
-  const rows = useMemo(() => serviceRows(w, f), [w, f]),
-    maxPage = Math.max(1, Math.ceil(rows.length / 18)),
-    current = Math.min(page, maxPage);
+  const rows = useMemo(() => serviceRows(w, f), [w, f]);
+  const hasRows = rows.length > 0;
+  useLayoutEffect(() => {
+    viewport.current?.scrollTo(scrollPositionRef.current);
+  }, [f, hasRows, scrollPositionRef]);
   const latest = useMemo(() => {
     const index = new Map<string, Entry>();
     for (const entry of w.entries) {
@@ -488,14 +490,13 @@ export function Workbench({
               className={"phase-card " + k + (f.phase === k ? " selected" : "")}
               key={k}
               aria-pressed={f.phase === k}
-              onClick={() => {
-                setFilters({
+              onClick={() =>
+                changeFilters({
                   ...f,
                   phase: k,
                   closure: k === "completed" ? f.closure : "",
-                });
-                setPage(1);
-              }}
+                })
+              }
             >
               <span className="phase-label">{phases[k]}</span>
               <strong>{counts[k]}</strong>
@@ -565,17 +566,24 @@ export function Workbench({
             ))}
             <button
               className="link"
-              onClick={() => {
-                setFilters({ ...defaultFilters, phase: f.phase });
-                setPage(1);
-              }}
+              onClick={() => changeFilters({ ...defaultFilters, phase: f.phase })}
             >
               清空条件
             </button>
           </div>
         )}
-        {rows.length ? (
-          <div className="table-scroll">
+        {hasRows ? (
+          <div
+            ref={viewport}
+            className="table-scroll"
+            role="region"
+            aria-label={phases[f.phase] + "服务表格"}
+            tabIndex={0}
+            onScroll={(e) => {
+              const { scrollTop, scrollLeft } = e.currentTarget;
+              scrollPositionRef.current = { top: scrollTop, left: scrollLeft };
+            }}
+          >
             <table className={"data-table sticky services-table" + (completed ? " with-closures" : "")}>
               <thead>
                 <tr>
@@ -593,7 +601,7 @@ export function Workbench({
                 </tr>
               </thead>
               <tbody>
-                {rows.slice((current - 1) * 18, current * 18).map((s) => (
+                {rows.map((s) => (
                   <ServiceRow key={s.id} service={s} student={students.get(s.studentId)!}
                     log={latest.get(s.studentId + (s.phase === "applying" ? "|application" : "|progress"))}
                     admissions={admissions.get(s.id)} staff={staff} nameOf={cat} />
@@ -613,7 +621,7 @@ export function Workbench({
                 <button
                   className="btn"
                   onClick={() =>
-                    setFilters({ ...defaultFilters, phase: f.phase })
+                    changeFilters({ ...defaultFilters, phase: f.phase })
                   }
                 >
                   清除筛选
@@ -636,12 +644,6 @@ export function Workbench({
                 : "进入此阶段的服务会显示在这里。"}
           </Empty>
         )}
-        <PageNav
-          page={current}
-          total={rows.length}
-          size={18}
-          change={setPage}
-        />
       </section>
     </>
   );

@@ -55,7 +55,6 @@ export default function Site() {
   const [route, setRoute] = useState("services"),
     [detailList, setDetailList] = useState("students"),
     [filters, setFilters] = useState<Filters>(defaultFilters),
-    [serviceListPage, setServiceListPage] = useState(1),
     [studentQuery, setStudentQuery] = useState(""),
     [studentListPage, setStudentListPage] = useState(1),
     [view, setView] = useState<View | null>(null),
@@ -63,6 +62,7 @@ export default function Site() {
     [menu, setMenu] = useState(false),
     [profile, setProfile] = useState(false);
   const accountMenu = useRef<HTMLDivElement>(null);
+  const serviceListScrollRef = useRef({ top: 0, left: 0 });
   const navToggle = useRef<HTMLButtonElement>(null);
   const navClose = useRef<HTMLButtonElement>(null);
   const dismissMenu = useCallback(() => {
@@ -157,7 +157,7 @@ export default function Site() {
     setFilters(defaultFilters);
     setStudentQuery("");
     setStudentListPage(1);
-    setServiceListPage(1);
+    serviceListScrollRef.current = { top: 0, left: 0 };
   }, []);
   const access = useCallback(async () => {
     const generation = session.current;
@@ -345,7 +345,7 @@ export default function Site() {
             {!loaded ? (
               <Empty title="正在读取服务资料" />
             ) : page === "services" ? (
-              <Workbench filters={filters} setFilters={setFilters} page={serviceListPage} setPage={setServiceListPage} />
+              <Workbench filters={filters} setFilters={setFilters} scrollPositionRef={serviceListScrollRef} />
             ) : page === "students" ? (
               <Students q={studentQuery} search={setStudentQuery} page={studentListPage} setPage={setStudentListPage} />
             ) : page === "service" && !legacyService ? (

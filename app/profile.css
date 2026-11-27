@@ -520,7 +520,7 @@ summary:hover {
 }
 .shell {
   --sidebar-width: 224px;
-  min-height: 100vh;
+  min-height: 100dvh;
 }
 .sidebar {
   position: fixed;
@@ -696,7 +696,10 @@ summary:hover {
   padding: clamp(18px, 2vw, 30px) clamp(14px, 1.25vw, 24px) 48px;
 }
 .workspace-main:has(> .phase-grid) {
-  padding-top: 12px;
+  display: grid;
+  align-content: start;
+  height: 100dvh;
+  padding-block: 12px;
 }
 .page-head {
   display: flex;
@@ -793,8 +796,27 @@ summary:hover {
 }
 .list-panel {
   container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.list-panel > .filter-box {
+  flex: none;
+  max-height: clamp(4rem, 100dvh - 20rem, 36dvh);
+  overflow-y: auto;
+}
+.list-panel > .table-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+  scroll-padding-top: 2.25rem;
+}
+.services-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 2;
 }
 .workbench-toolbar {
+  flex: none;
   display: grid;
   grid-template-columns: auto minmax(9rem, 22.5rem) auto minmax(0, 1fr) auto auto;
   grid-template-areas: "title search filter . sort create";
