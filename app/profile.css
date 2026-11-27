@@ -691,9 +691,9 @@ summary:hover {
   background: var(--selected);
 }
 .workspace-main {
-  max-width: 1570px;
+  max-width: 1800px;
   margin: 0 auto;
-  padding: clamp(18px, 2vw, 30px) clamp(18px, 2.5vw, 40px) 48px;
+  padding: clamp(18px, 2vw, 30px) clamp(14px, 1.25vw, 24px) 48px;
 }
 .workspace-main:has(> .phase-grid) {
   padding-top: 12px;
@@ -1685,10 +1685,6 @@ summary:hover {
   }
   .sidebar nav button {
     padding-inline: 8px;
-  }
-  .workspace-main {
-    padding-left: 19px;
-    padding-right: 19px;
   }
   .phase-grid {
     gap: 8px;
