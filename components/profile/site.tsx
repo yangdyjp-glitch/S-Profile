@@ -1,8 +1,6 @@
 "use client";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
-  CalendarDays,
-  ChevronRight,
   ChevronUp,
   ContactRound,
   FolderInput,
@@ -17,7 +15,6 @@ import {
 } from "lucide-react";
 import {
   emptyWorkspace,
-  tokyoDay,
   type Account,
   type Workspace,
 } from "../../lib/profile/model";
@@ -246,14 +243,12 @@ export default function Site() {
     adminImports = route === adminImportsRoute && user.role === "admin",
     studentDetail = page === "student" || page === "service",
     legacyService = page === "service" ? w.services.find((s) => s.id === id) : undefined,
-    active = studentDetail ? detailList : page,
-    section = nav.find((n) => n.key === active);
+    active = studentDetail ? detailList : page;
   const open = (title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
     setView({ title, node, wide, anchor });
     setProfile(false);
     setMenu(false);
   };
-  const today = tokyoDay();
   return (
     <SiteContext.Provider
       value={{ w, user, refresh, write, open, close: () => setView(null), notice, go }}
@@ -335,40 +330,17 @@ export default function Site() {
           </div>
         </aside>
         <div className="shell-body" inert={menu}>
-          <header className={"shell-top" + (page === "services" ? " workbench-top" : "")}>
-            <div className="shell-navigation">
-              <button
-                ref={navToggle}
-                className="icon mobile"
-                aria-label="打开导航"
-                aria-controls="workspace-navigation"
-                aria-expanded={menu}
-                onClick={() => setMenu(true)}
-              >
-                <Menu size={20} />
-              </button>
-              {page !== "services" && (
-                <div className={studentDetail ? "breadcrumbs student-crumbs" : "breadcrumbs"}>
-                  <span>{adminImports ? "管理后台" : "工作空间"}</span>
-                  <ChevronRight size={14} />
-                  {studentDetail ? (
-                    <>
-                      <button className="row-name" onClick={() => go(detailList)}>{section?.name}</button>
-                      <ChevronRight size={14} />
-                      <b>学生详情</b>
-                    </>
-                  ) : (
-                    <b>{adminImports ? "导入核对" : section?.name || "工作台"}</b>
-                  )}
-                </div>
-              )}
-            </div>
-            <time className="shell-date small-info" dateTime={today}>
-              <CalendarDays size={15} />
-              {today.replaceAll("-", "/")}
-            </time>
-          </header>
           <main className="workspace-main">
+            <button
+              ref={navToggle}
+              className="icon mobile nav-toggle"
+              aria-label="打开导航"
+              aria-controls="workspace-navigation"
+              aria-expanded={menu}
+              onClick={() => setMenu(true)}
+            >
+              <Menu size={20} />
+            </button>
             <ErrorBox message={error} />
             {!loaded ? (
               <Empty title="正在读取服务资料" />

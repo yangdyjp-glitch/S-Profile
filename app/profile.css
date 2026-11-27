@@ -145,7 +145,6 @@ summary:hover {
 .internal,
 .small-info,
 .member,
-.breadcrumbs,
 .actions,
 .stage-pill,
 .tag,
@@ -616,40 +615,9 @@ summary:hover {
   margin-left: var(--sidebar-width);
   min-width: 0;
 }
-.shell-top {
-  min-height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  padding: 0 clamp(18px, 2.5vw, 40px);
-  border-bottom: 1px solid var(--line);
-  background: white;
-}
-.shell-navigation {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-}
-.shell-top.workbench-top {
-  min-height: 36px;
-  height: auto;
-}
-.workbench-top + .workspace-main {
-  padding-top: 12px;
-}
-.breadcrumbs,
 .member {
   gap: 9px;
   font-size: 0.89rem;
-}
-.breadcrumbs {
-  color: var(--muted);
-}
-.breadcrumbs b {
-  color: var(--ink);
-}
-.member {
   width: 100%;
   text-align: left;
   padding: 7px;
@@ -726,6 +694,9 @@ summary:hover {
   max-width: 1570px;
   margin: 0 auto;
   padding: clamp(18px, 2vw, 30px) clamp(18px, 2.5vw, 40px) 48px;
+}
+.workspace-main:has(> .phase-grid) {
+  padding-top: 12px;
 }
 .page-head {
   display: flex;
@@ -1752,12 +1723,24 @@ summary:hover {
   .shell-body {
     margin-left: 0;
   }
-  .shell-top {
-    height: 57px;
-    padding: 0 13px;
+  .workspace-main {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr);
+    column-gap: 8px;
+    align-content: start;
   }
-  .shell-top.workbench-top {
-    min-height: 44px;
+  .workspace-main > * {
+    grid-column: 1 / -1;
+  }
+  .workspace-main > .nav-toggle {
+    grid-column: 1;
+    width: 40px;
+    height: 40px;
+    background: white;
+    border: 1px solid var(--line);
+  }
+  .workspace-main > .nav-toggle + * {
+    grid-column: 2;
   }
   .page-head {
     align-items: flex-start;
@@ -1948,24 +1931,11 @@ summary:hover {
   .panel > .table-scroll {
     margin-inline: 10px;
   }
-  .shell-date {
-    flex: none;
-    font-size: 0.8rem;
-  }
   .tabs {
     gap: 1rem;
   }
-  .member,
-  .breadcrumbs {
+  .member {
     font-size: 0.82rem;
-  }
-  .student-crumbs {
-    gap: 5px;
-    white-space: nowrap;
-  }
-  .student-crumbs > span:first-child,
-  .student-crumbs > span:first-child + svg {
-    display: none;
   }
 }
 @media (pointer: coarse) {
