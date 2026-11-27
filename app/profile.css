@@ -1272,8 +1272,9 @@ summary:hover {
 .timeline {
   padding: 16px 20px;
 }
-.section-pad .compact {
+.panel-title .compact {
   width: auto;
+  margin-inline-start: auto;
 }
 .record-list {
   display: grid;

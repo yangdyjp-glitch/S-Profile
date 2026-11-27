@@ -93,21 +93,6 @@ function Timeline({
       title={title}
       nested={nested}
       action={
-        <button
-          className="btn"
-          onClick={() =>
-            open(
-              "新增" + entryKinds[kind],
-              <EntryEditor kind={kind} studentId={st.id} />,
-            )
-          }
-        >
-          <Plus size={15} />
-          新增记录
-        </button>
-      }
-    >
-      <div className="section-pad">
         <select
           className="compact"
           aria-label="按记录年月筛选"
@@ -121,6 +106,21 @@ function Timeline({
             </option>
           ))}
         </select>
+      }
+    >
+      <div className="section-pad">
+        <button
+          className="btn"
+          onClick={() =>
+            open(
+              "新增" + entryKinds[kind],
+              <EntryEditor kind={kind} studentId={st.id} />,
+            )
+          }
+        >
+          <Plus size={15} />
+          新增记录
+        </button>
       </div>
       {shown.length ? (
         <div className="timeline">
