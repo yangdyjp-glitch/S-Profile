@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronDown,
   FileClock,
@@ -40,29 +40,10 @@ import {
 } from "./ui";
 import { PageHead } from "./workbench";
 import { ProjectNames } from "./project-names";
-function Tabs({
-  tab,
-  set,
-  items,
-}: {
-  tab: string;
-  set: (v: string) => void;
-  items: [string, string][];
-}) {
-  return (
-    <nav className="tabs" aria-label="详情分区">
-      {items.map(([k, v]) => (
-        <button
-          key={k}
-          aria-current={tab === k ? "page" : undefined}
-          className={tab === k ? "active" : ""}
-          onClick={() => set(k)}
-        >
-          {v}
-        </button>
-      ))}
-    </nav>
-  );
+function intakeMonths(months: string[], fallback = "待补") {
+  return months.length ? months.map((month, i) => (
+    <span className="intake-month" key={i}>{month}{i + 1 < months.length && "、"}</span>
+  )) : fallback;
 }
 const timelinePageSize = 12;
 function Timeline({
@@ -184,12 +165,12 @@ function Timeline({
     </Section>
   );
 }
-function History({ type, id, action }: { type: "students" | "services"; id: string; action?: ReactNode }) {
+function History({ type, id }: { type: "students" | "services"; id: string }) {
   const { w } = useSite(),
     [rows, setRows] = useState<Revision[]>([]),
     [has, setHas] = useState(true),
     [error, setError] = useState(""),
-    [busy, setBusy] = useState(false);
+    [busy, setBusy] = useState(true);
   useEffect(() => {
     let valid = true;
     setBusy(true);
@@ -226,56 +207,84 @@ function History({ type, id, action }: { type: "students" | "services"; id: stri
     }
   }
   return (
-    <Section title="变更历史" action={action}>
-      <div className="section-pad history-list">
-        <ErrorBox message={error} />
-        {rows.map((r) => {
-          const before = r.before ? JSON.parse(r.before) : {},
-            after = JSON.parse(r.after),
-            keys = Object.keys(after).filter(
-              (k) =>
-                labels[k] &&
-                JSON.stringify(before[k]) !== JSON.stringify(after[k]),
-            );
-          return (
-            <details key={r.seq}>
-              <summary>
-                <span className="history-icon">
-                  <FileClock size={16} />
-                </span>
-                <div>
-                  <strong>{r.action}</strong>
-                  <small>
-                    {r.actor} · {timeLabel(r.at)} · 第 {r.version} 版
-                  </small>
-                </div>
-                <ChevronDown size={16} />
-              </summary>
-              <div className="history-content">
-                {r.entity !== "students" && <small>{r.entityId}</small>}
-                {keys.map((k) => (
-                  <div className="history-diff" key={k}>
-                    <b>{labels[k]}</b>
-                    {r.before && (
-                      <span>原值 {displayField(k, before[k], w.catalogs)}</span>
-                    )}
-                    <span>现值 {displayField(k, after[k], w.catalogs)}</span>
-                  </div>
-                ))}
-                {!keys.length && <p>关联记录已更新。</p>}
-              </div>
-            </details>
+    <div className="section-pad history-list" aria-busy={busy}>
+      <ErrorBox message={error} />
+      {rows.map((r) => {
+        const before = r.before ? JSON.parse(r.before) : {},
+          after = JSON.parse(r.after),
+          keys = Object.keys(after).filter(
+            (k) =>
+              labels[k] &&
+              JSON.stringify(before[k]) !== JSON.stringify(after[k]),
           );
-        })}
-        {!rows.length && !busy && <p className="subtle">暂无变更记录</p>}
-        {busy && <p className="subtle">正在加载…</p>}
-        {has && !busy && rows.length > 0 && (
-          <button className="btn" onClick={more}>
-            载入更早记录
-          </button>
-        )}
+        return (
+          <details key={r.seq}>
+            <summary>
+              <span className="history-icon">
+                <FileClock size={16} />
+              </span>
+              <div>
+                <strong>{r.action}</strong>
+                <small>
+                  {r.actor} · {timeLabel(r.at)} · 第 {r.version} 版
+                </small>
+              </div>
+              <ChevronDown size={16} />
+            </summary>
+            <div className="history-content">
+              {r.entity !== "students" && <small>{r.entityId}</small>}
+              {keys.map((k) => (
+                <div className="history-diff" key={k}>
+                  <b>{labels[k]}</b>
+                  {r.before && (
+                    <span>原值 {displayField(k, before[k], w.catalogs)}</span>
+                  )}
+                  <span>现值 {displayField(k, after[k], w.catalogs)}</span>
+                </div>
+              ))}
+              {!keys.length && <p>关联记录已更新。</p>}
+            </div>
+          </details>
+        );
+      })}
+      {!rows.length && !busy && <p className="subtle">暂无变更记录</p>}
+      {busy && <p className="subtle">正在加载…</p>}
+      {has && !busy && rows.length > 0 && (
+        <button className="btn" onClick={more}>
+          载入更早记录
+        </button>
+      )}
+    </div>
+  );
+}
+function HistoryPanel({ studentId, serviceId }: { studentId: string; serviceId?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [scope, setScope] = useState("student");
+  const scopedService = scope === "service" ? serviceId : undefined;
+  return (
+    <section className="panel detail-history" aria-labelledby="history-heading">
+      <h2 id="history-heading">
+        <button type="button" aria-expanded={expanded} aria-controls="student-history-content"
+          onClick={() => setExpanded(!expanded)}>
+          变更历史 <ChevronDown size={18} aria-hidden="true" />
+        </button>
+      </h2>
+      <div id="student-history-content" hidden={!expanded}>
+        {expanded && <>
+          {serviceId && (
+            <label className="history-scope">
+              历史范围
+              <select className="compact" value={scope} onChange={(e) => setScope(e.target.value)}>
+                <option value="student">该生全部记录</option>
+                <option value="service">仅当前服务</option>
+              </select>
+            </label>
+          )}
+          <History key={scopedService || studentId}
+            type={scopedService ? "services" : "students"} id={scopedService || studentId} />
+        </>}
       </div>
-    </Section>
+    </section>
   );
 }
 function Applications({ s }: { s: Service }) {
@@ -388,6 +397,9 @@ function ServiceActions({ s }: { s: Service }) {
           : ["reopen"];
   return (
     <div className="actions">
+      <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
+        <Pencil size={15} /> 编辑服务
+      </button>
       {ops.map((action) => (
         <button className="btn" key={action}
           onClick={() => open(actions[action], <ActionEditor s={s} action={action} />)}>
@@ -403,23 +415,8 @@ function ServicePanels({ s }: { s: Service }) {
   const closure = currentClosure(s);
   return (
     <div className="detail-grid service-panels">
-      <Section title="合同目标与工作进度" action={
-        <div className="actions">
-          <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
-            <Pencil size={15} /> 编辑服务
-          </button>
-          <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
-            <Pencil size={15} /> 编辑工作进度
-          </button>
-        </div>
-      }>
-        <Facts
-          values={[
-            ["甲方渠道", cat(s.channel)],
-            ["专业方向", s.major],
-            ["原合同入学目标", s.original.join("、")],
-          ]}
-        />
+      <section className="panel progress-summary" aria-labelledby="work-heading">
+        <h2 id="work-heading">工作进度</h2>
         <Facts
           values={[
             [s.phase === "completed" ? "结束前状况" : "学生状况", s.status],
@@ -430,12 +427,15 @@ function ServicePanels({ s }: { s: Service }) {
             ["学校出愿信息", s.publication],
           ]}
         />
-      </Section>
+        <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
+          <Pencil size={15} /> 编辑工作进度
+        </button>
+      </section>
       {closure && (
         <Section title={"完成情况 · " + closureKinds[closure.kind]}>
           <Facts
             values={[
-              ["结束时入学目标", closure.targets.join("、")],
+              ["结束时入学目标", intakeMonths(closure.targets)],
               ["结案说明", closure.note || "未填写"],
               ["结案时间", timeLabel(closure.at)],
             ]}
@@ -480,8 +480,6 @@ const servicePriority = { progress: 0, applying: 0, paused: 1, completed: 2 };
 
 export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId?: string; legacy: boolean }) {
   const { w, open, go } = useSite();
-  const [tab, setTab] = useState("overview");
-  const [historyScope, setHistoryScope] = useState("student");
   const st = w.students.find((student) => student.id === id);
   const choices = useMemo(() => {
     const services = w.services.filter((service) => service.studentId === id);
@@ -507,7 +505,6 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
     }
   }, [id, serviceId, selectedId, legacy]);
   if (!st) return <Empty title="找不到学生档案" />;
-  const historyServiceId = historyScope === "service" ? selectedId : undefined;
   return (
     <>
       <PageHead
@@ -539,9 +536,32 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
           ["所在地", st.location],
           ["当前学管", labelOf(w.catalogs, st.manager, "学管待分配")],
           ["首次签单", st.orderMonth],
+          ["专业方向", choices.length ? (
+            <ul className="archive-majors">
+              {choices.map(({ service, projects }) => (
+                <li key={service.id}>
+                  <button className="link" aria-haspopup="dialog"
+                    aria-label={"编辑专业方向 · " + (service.major || "待补") + " · " + (projects.join("、") || "项目待补")}
+                    aria-describedby={choices.length > 1 ? "major-context-" + service.id : undefined}
+                    onClick={() => open("编辑专业方向", <ServiceEditor old={service} field="major" />)}>
+                    {service.major || "待补"} <Pencil size={13} aria-hidden="true" />
+                  </button>
+                  {choices.length > 1 && (
+                    <small id={"major-context-" + service.id}>
+                      {projects.join("、") || "合同项目待补"}
+                      {!!service.targets.length && <> · {intakeMonths(service.targets)}</>}
+                      {service.id === selectedId && " · 当前服务"}
+                    </small>
+                  )}
+                </li>
+              ))}
+            </ul>
+          ) : "待补"],
+          ["历次服务", choices.length + " 份"],
+          ["语言情况", st.declaration || "历史待补"],
         ]} />
         <details>
-          <summary>语言成绩 <small>{st.declaration || "历史待补"}</small></summary>
+          <summary>语言成绩</summary>
           <Facts values={[
             ["JLPT", st.jlpt || "未填写"],
             ["托福", st.toefl || "未填写"],
@@ -573,42 +593,31 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
         </div>
         {selected && s && <Facts values={[
           ["合同项目", <ProjectNames names={selected.projects} fallback="合同项目待补" />],
-          ["当前入学目标", s.targets.join("、") || "目标待补"],
+          ["甲方渠道", labelOf(w.catalogs, s.channel)],
+          ["原合同入学目标", intakeMonths(s.original)],
+          ["当前入学目标", intakeMonths(s.targets, "目标待补")],
           ["教务老师", labelOf(w.catalogs, s.teacher, "教务待分配")],
         ]} />}
         {!choices.length && <span className="subtle">暂无服务</span>}
         {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
         {s && <ServiceActions s={s} />}
       </section>
-      <Tabs tab={tab} set={setTab} items={[["overview", "服务与跟进"], ["history", "变更历史"]]} />
-      {tab === "overview" ? (
-        <div className="overview-records stack">
-          {s && <ServicePanels s={s} />}
-          <Timeline key={st.id} st={st} kind="progress" />
-          <Section title="申请与出愿">
-            <div className={s ? "detail-grid application-grid" : undefined}>
-              {s && <Applications s={s} />}
-              <Timeline key={st.id} st={st} kind="application" nested />
-            </div>
+      <div className="overview-records stack">
+        {s && <ServicePanels s={s} />}
+        <Timeline key={st.id} st={st} kind="progress" />
+        <Section title="申请与出愿">
+          <div className={s ? "detail-grid application-grid" : undefined}>
+            {s && <Applications s={s} />}
+            <Timeline key={st.id} st={st} kind="application" nested />
+          </div>
+        </Section>
+        {s && (
+          <Section title="特记事项与备注">
+            <Facts values={[["特记事项", s.special || "未填写"], ["备注", s.notes || "未填写"]]} />
           </Section>
-          {s && (
-            <Section title="特记事项与备注">
-              <Facts values={[["特记事项", s.special || "未填写"], ["备注", s.notes || "未填写"]]} />
-            </Section>
-          )}
-        </div>
-      ) : (
-        <History key={historyServiceId || id}
-          type={historyServiceId ? "services" : "students"} id={historyServiceId || id}
-          action={s && (
-            <select className="compact" aria-label="历史范围" value={historyScope}
-              onChange={(e) => setHistoryScope(e.target.value)}>
-              <option value="student">该生全部记录</option>
-              <option value="service">仅当前服务</option>
-            </select>
-          )}
-        />
-      )}
+        )}
+        <HistoryPanel studentId={id} serviceId={selectedId} />
+      </div>
     </>
   );
 }
