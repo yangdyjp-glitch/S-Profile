@@ -183,6 +183,7 @@ export function FormShell({
   successMessage = "已保存",
   sources = [],
   after,
+  onDismiss,
 }: {
   children: ReactNode;
   save: (versions: Values, key: string, write: WorkspaceWrite) => Promise<any>;
@@ -191,8 +192,10 @@ export function FormShell({
   successMessage?: string;
   sources?: { path: string; row: Values; key: string }[];
   after?: (r: any) => void;
+  onDismiss?: () => void;
 }) {
   const { write, close, notice, w } = useSite();
+  const dismiss = onDismiss ?? close;
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [versions, setVersions] = useState<Values>({}),
@@ -211,7 +214,7 @@ export function FormShell({
       pending.current = { payload, key: crypto.randomUUID() };
     try {
       const result = await save(versions, pending.current!.key, write);
-      close();
+      dismiss();
       notice(successMessage);
       after?.(result);
     } catch (e) {
@@ -277,7 +280,7 @@ export function FormShell({
         )}
       </div>
       <footer className="dialog-foot">
-        <button type="button" className="btn" onClick={close}>
+        <button type="button" className="btn" onClick={dismiss}>
           取消
         </button>
         <button className="btn primary" disabled={busy || !!latest || unchanged}>
@@ -412,6 +415,7 @@ export function Select({
   title,
   placeholder = "请选择",
   disabled = false,
+  autoFocus = false,
 }: {
   b: Binder;
   k: string;
@@ -420,6 +424,7 @@ export function Select({
   title?: string;
   placeholder?: string;
   disabled?: boolean;
+  autoFocus?: boolean;
 }) {
   return (
     <Field label={title || labels[k] || k} required={required}>
@@ -428,6 +433,7 @@ export function Select({
         required={required}
         value={b.v[k] ?? ""}
         disabled={disabled}
+        autoFocus={autoFocus}
         onChange={(e) => b.set(k, e.target.value)}
       >
         <option value="">{placeholder}</option>

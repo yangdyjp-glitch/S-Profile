@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
   CheckCheck,
@@ -25,9 +25,11 @@ import {
   phases,
   tokyoDay,
   type Application,
+  type Catalog,
   type Entry,
   type Phase,
   type Service,
+  type Student,
 } from "../../lib/profile/model";
 import {
   defaultFilters,
@@ -37,10 +39,11 @@ import {
 import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
-type ListField = ServiceListField | "name" | "manager" | "entry";
+import { WorkbenchChoices } from "./workbench-choices";
+type ListField = ServiceListField | "name" | "entry";
 const fieldNames: Record<ListField, string> = {
   name: "姓名", major: "专业", projects: "合同项目", status: "学生状况", targets: "入学目标",
-  teacher: "教务", manager: "学管", progress: "申请进度", risk: "潜在风险", entry: "最新跟进",
+  entry: "最新跟进",
 };
 const statusTransitions: Partial<Record<Phase, { action: string; label: string }>> = {
   paused: { action: "resume", label: "恢复服务" },
@@ -274,6 +277,121 @@ function AdmittedSchools({ service, admissions, nameOf }: {
     </ul>
   );
 }
+function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf }: {
+  service: Service;
+  student: Student;
+  log?: Entry;
+  admissions?: Application[];
+  staff: Catalog[];
+  nameOf: (id: string, blank?: string) => string;
+}) {
+  const { open, go } = useSite();
+  const row = useRef<HTMLTableRowElement>(null);
+  const [progressChange, setProgressChange] = useState<{ service: Service; value: string } | null>(null);
+  const completed = s.phase === "completed";
+  const closure = completed ? currentClosure(s) : undefined;
+  const entryKind = s.phase === "applying" ? "application" : "progress";
+  const projects = s.projects.map((p) => nameOf(p));
+  const statusTransition = statusTransitions[s.phase];
+  const targets = s.targets.join(" / ") || "目标待补";
+  const updatedAt = Date.parse(s.updatedAt);
+
+  function edit(field: ListField, anchor: HTMLButtonElement) {
+    const transition = field === "status" ? statusTransition : undefined;
+    const title = transition?.label || (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
+    let editor;
+    if (transition) {
+      editor = <ActionEditor s={s} action={transition.action} />;
+    } else if (field === "name") {
+      editor = <StudentEditor old={st} field={field} />;
+    } else if (field === "entry") {
+      editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
+    } else {
+      editor = <ServiceEditor old={s} field={field} />;
+    }
+    open(title + " · " + st.name, editor, false, anchor);
+  }
+  const fieldButton = (
+    field: ListField,
+    value: string,
+    format = "one-line",
+    content: React.ReactNode = value,
+  ) => {
+    const hint = field === "status" && statusTransition
+      ? value + "（" + statusTransition.label + "后可修改）"
+      : value;
+    return (
+      <button type="button" className="cell-edit" aria-haspopup="dialog"
+        aria-label={fieldNames[field] + " · " + st.name + " · " + hint}
+        title={hint} onClick={(e) => edit(field, e.currentTarget)}>
+        <span className={format} title={hint}>{content}</span>
+      </button>
+    );
+  };
+  function dismissProgress() {
+    setProgressChange((current) => current === progressChange ? null : current);
+    row.current?.querySelector<HTMLElement>('select[name="progress"]')?.focus({ preventScroll: true });
+  }
+  return (
+    <>
+      <tr ref={row}>
+        <td>
+          <div className="name-actions">
+            <button className="row-name one-line" title={st.name} onClick={() => go(studentPath(st.id, s.id))}>
+              {st.name}
+            </button>
+            <button className="name-edit" title="修改姓名" aria-label={"修改姓名 · " + st.name}
+              aria-haspopup="dialog" onClick={(e) => edit("name", e.currentTarget)}>
+              <Pencil size={13} aria-hidden="true" />
+            </button>
+          </div>
+        </td>
+        <td className="status-target-cell">
+          {fieldButton("status", s.status || "状况待补")}
+          <small>{fieldButton("targets", targets, "two-lines")}</small>
+        </td>
+        <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
+        <td>
+          {fieldButton("projects", projects.join("、") || "待补", "project-list", <ProjectNames names={projects} />)}
+        </td>
+        <WorkbenchChoices service={s} student={st} staff={staff} draftProgress={progressChange?.value}
+          setDraftProgress={(value) => setProgressChange(value ? { service: s, value } : null)} />
+        {completed && (
+          <td>
+            {closure?.kind === "admission" ? (
+              <AdmittedSchools service={s} admissions={admissions} nameOf={nameOf} />
+            ) : closure ? (
+              <button className="cell-edit" aria-haspopup="dialog" title="更正结案情况"
+                onClick={(e) => open("撤回误结案 · " + st.name, <ActionEditor s={s} action="reopen" />, false, e.currentTarget)}>
+                <span className="tag">{closureKinds[closure.kind]}</span>
+              </button>
+            ) : (
+              <span className="tag">待补</span>
+            )}
+            {!!closure?.targets.length && <small>{closure.targets.join("、")}</small>}
+          </td>
+        )}
+        <td>{fieldButton("entry", log?.body || "暂无记录", "two-lines")}</td>
+        <td className="updated-col tabular">
+          {Number.isFinite(updatedAt) ? (
+            <time dateTime={s.updatedAt}>{updateMonthDay.format(updatedAt)}</time>
+          ) : "待核"}
+        </td>
+      </tr>
+      {progressChange && (
+        <tr className="progress-status-row">
+          <td colSpan={completed ? 11 : 10}>
+            <section className="progress-status-editor" aria-label={st.name + "的申请进度与学生状况"}>
+              <strong>申请进度改为「{progressChange.value}」，请确认学生状况</strong>
+              <ServiceEditor key={progressChange.value} old={progressChange.service}
+                progressChange={{ value: progressChange.value, dismiss: dismissProgress }} />
+            </section>
+          </td>
+        </tr>
+      )}
+    </>
+  );
+}
 export function Workbench({
   filters: f,
   setFilters,
@@ -285,7 +403,7 @@ export function Workbench({
   page: number;
   setPage: (page: number) => void;
 }) {
-  const { w, open, go } = useSite(),
+  const { w, open } = useSite(),
     [more, setMore] = useState(false);
   const set = (k: keyof Filters, v: string) => {
     setFilters({ ...f, [k]: v });
@@ -316,6 +434,7 @@ export function Workbench({
   }, [w.applications]);
   const students = useMemo(() => new Map(w.students.map((s) => [s.id, s])), [w.students]);
   const names = useMemo(() => new Map(w.catalogs.map((c) => [c.id, c.name])), [w.catalogs]);
+  const staff = useMemo(() => w.catalogs.filter((c) => c.kind === "teacher" || c.kind === "manager"), [w.catalogs]);
   const counts = useMemo(() => {
     const result = { progress: 0, applying: 0, paused: 0, completed: 0 };
     for (const service of w.services) result[service.phase]++;
@@ -474,98 +593,11 @@ export function Workbench({
                 </tr>
               </thead>
               <tbody>
-                {rows.slice((current - 1) * 18, current * 18).map((s) => {
-                  const st = students.get(s.studentId)!,
-                    closure = completed ? currentClosure(s) : undefined,
-                    entryKind = s.phase === "applying" ? "application" : "progress",
-                    log = latest.get(st.id + "|" + entryKind);
-                  const projects = s.projects.map((p) => cat(p));
-                  const statusTransition = statusTransitions[s.phase];
-                  const targets = s.targets.join(" / ") || "目标待补";
-                  const teacher = cat(s.teacher, "待分配");
-                  const manager = cat(st.manager, "待分配");
-                  const updatedAt = Date.parse(s.updatedAt);
-                  function edit(field: ListField, anchor: HTMLButtonElement) {
-                    const transition = field === "status" ? statusTransition : undefined;
-                    const title = transition?.label || (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
-                    let editor;
-                    if (transition) {
-                      editor = <ActionEditor s={s} action={transition.action} />;
-                    } else if (field === "name" || field === "manager") {
-                      editor = <StudentEditor old={st} field={field} />;
-                    } else if (field === "entry") {
-                      editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
-                    } else {
-                      editor = <ServiceEditor old={s} field={field} />;
-                    }
-                    open(title + " · " + st.name, editor, false, anchor);
-                  }
-                  const fieldButton = (
-                    field: ListField,
-                    value: string,
-                    format = "one-line",
-                    content: React.ReactNode = value,
-                  ) => {
-                    const hint = field === "status" && statusTransition
-                      ? value + "（" + statusTransition.label + "后可修改）"
-                      : value;
-                    return (
-                      <button type="button" className="cell-edit" aria-haspopup="dialog"
-                        aria-label={fieldNames[field] + " · " + st.name + " · " + hint}
-                        title={hint} onClick={(e) => edit(field, e.currentTarget)}>
-                        <span className={format} title={hint}>{content}</span>
-                      </button>
-                    );
-                  };
-                  return (
-                    <tr key={s.id}>
-                      <td>
-                        <div className="name-actions">
-                          <button className="row-name one-line" title={st.name} onClick={() => go(studentPath(st.id, s.id))}>
-                            {st.name}
-                          </button>
-                          <button className="name-edit" title="修改姓名" aria-label={"修改姓名 · " + st.name}
-                            aria-haspopup="dialog" onClick={(e) => edit("name", e.currentTarget)}>
-                            <Pencil size={13} aria-hidden="true" />
-                          </button>
-                        </div>
-                      </td>
-                      <td className="status-target-cell">
-                        {fieldButton("status", s.status || "状况待补")}
-                        <small>{fieldButton("targets", targets, "two-lines")}</small>
-                      </td>
-                      <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
-                      <td>
-                        {fieldButton("projects", projects.join("、") || "待补", "project-list", <ProjectNames names={projects} />)}
-                      </td>
-                      <td>{fieldButton("teacher", teacher)}</td>
-                      <td>{fieldButton("manager", manager)}</td>
-                      <td>{fieldButton("progress", s.progress || "待补", "tag one-line")}</td>
-                      <td>{fieldButton("risk", s.risk || "风险待补")}</td>
-                      {completed && (
-                        <td>
-                          {closure?.kind === "admission" ? (
-                            <AdmittedSchools service={s} admissions={admissions.get(s.id)} nameOf={cat} />
-                          ) : closure ? (
-                            <button className="cell-edit" aria-haspopup="dialog" title="更正结案情况"
-                              onClick={(e) => open("撤回误结案 · " + st.name, <ActionEditor s={s} action="reopen" />, false, e.currentTarget)}>
-                              <span className="tag">{closureKinds[closure.kind]}</span>
-                            </button>
-                          ) : (
-                            <span className="tag">待补</span>
-                          )}
-                          {!!closure?.targets.length && <small>{closure.targets.join("、")}</small>}
-                        </td>
-                      )}
-                      <td>{fieldButton("entry", log?.body || "暂无记录", "two-lines")}</td>
-                      <td className="updated-col tabular">
-                        {Number.isFinite(updatedAt) ? (
-                          <time dateTime={s.updatedAt}>{updateMonthDay.format(updatedAt)}</time>
-                        ) : "待核"}
-                      </td>
-                    </tr>
-                  );
-                })}
+                {rows.slice((current - 1) * 18, current * 18).map((s) => (
+                  <ServiceRow key={s.id} service={s} student={students.get(s.studentId)!}
+                    log={latest.get(s.studentId + (s.phase === "applying" ? "|application" : "|progress"))}
+                    admissions={admissions.get(s.id)} staff={staff} nameOf={cat} />
+                ))}
               </tbody>
             </table>
           </div>

@@ -975,13 +975,13 @@ summary:hover {
   width: 10%;
 }
 .services-table .staff-col {
-  width: 4.375rem;
+  width: 4.75rem;
 }
 .services-table .progress-col {
-  width: 5.5rem;
+  width: 5.75rem;
 }
 .services-table .risk-col {
-  width: 4.875rem;
+  width: 5.75rem;
 }
 .services-table .updated-col {
   --table-cell-padding: 6px 4px;
@@ -1028,6 +1028,45 @@ summary:hover {
 .status-target-cell .cell-edit {
   min-height: 0;
 }
+.cell-select {
+  appearance: auto;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  text-overflow: ellipsis;
+}
+.cell-select[name="progress"] {
+  padding-inline-start: 5px;
+  border-radius: 6px;
+  background-color: var(--neutral);
+  color: var(--muted);
+  font-size: 0.82rem;
+}
+.cell-select:disabled {
+  cursor: wait;
+  opacity: 0.65;
+}
+.cell-select option {
+  color: var(--ink);
+  background: white;
+}
+.services-table.sticky .progress-status-row > td:first-child {
+  position: static;
+  background: var(--tint);
+}
+.progress-status-editor {
+  width: min(32rem, calc(100vw - 4rem));
+  padding: 6px 8px;
+}
+.progress-status-editor .dialog-body {
+  padding: 6px 0;
+}
+.progress-status-editor .dialog-foot {
+  position: static;
+  justify-content: start;
+  padding: 6px 0 0;
+  border: 0;
+}
 .services-table .project-list > span {
   display: inline-block;
   max-width: 100%;
@@ -1043,11 +1082,6 @@ summary:hover {
 }
 .services-table .cell-edit:is(:hover, :focus-visible) .tag {
   background: var(--deep);
-}
-.services-table .tag.one-line {
-  display: inline-block;
-  max-width: 100%;
-  vertical-align: middle;
 }
 .services-table .two-lines {
   display: -webkit-box;

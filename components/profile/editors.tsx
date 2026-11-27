@@ -8,7 +8,6 @@ import {
   emptyStudent,
   passwordLength,
   phases,
-  requiresActiveStatus,
   roles,
   tokyoDay,
   type Application,
@@ -69,7 +68,7 @@ function studentPayload(v: Values) {
     ? { ...v, jlpt: "", toefl: "", ielts: "", toeic: "" }
     : v;
 }
-export function StudentEditor({ old, field }: { old?: Student; field?: "name" | "manager" }) {
+export function StudentEditor({ old, field }: { old?: Student; field?: "name" }) {
   const b = useValues(old || emptyStudent),
     { go } = useSite();
   const updates = changed(old, studentPayload(b.v), field ? [field] : Object.keys(emptyStudent));
@@ -98,15 +97,14 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" | 
       }}
     >
       {field === "name" && <Text b={b} k="name" required />}
-      {field === "manager" && <CatalogField b={b} k="manager" kind="manager" />}
       {!field && <StudentFields b={b} old={old} />}
     </FormShell>
   );
 }
-export type ServiceListField = "major" | "projects" | "status" | "targets" | "teacher" | "progress" | "risk";
+export type ServiceListField = "major" | "projects" | "status" | "targets";
 type ServiceEditorField = ServiceListField | "work";
 type ServiceFormKey = keyof typeof emptyService;
-function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceEditorField): ServiceFormKey[] {
+function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceEditorField | "progress"): ServiceFormKey[] {
   const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
   if (field === "work") return [...statusFields, "collection", "production", "progress", "risk", "publication"];
   if (!field) return [
@@ -118,7 +116,7 @@ function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceEdi
     const contractTarget = v.status === "未开始" || v.status === "当期申请";
     return ["status", contractTarget ? "original" : "targets"];
   }
-  if (field === "progress" && active && old.status === "未开始" && requiresActiveStatus(v.progress)) {
+  if (field === "progress") {
     return ["progress", ...statusFields];
   }
   return [field];
@@ -151,8 +149,7 @@ function ServiceField({ b, k, old, quick }: { b: Binder; k: ServiceFormKey; old?
     case "notes":
       return <Text b={b} k={k} type="area" wide />;
     default:
-      return <Select b={b} k={k} items={choices[k]} required={required}
-        title={quick && k === "risk" ? "潜在风险" : undefined} />;
+      return <Select b={b} k={k} items={choices[k]} required={required} />;
   }
 }
 function SchoolFields({ b, old }: { b: Binder; old?: Application }) {
@@ -231,13 +228,15 @@ export function ServiceEditor({
   old,
   studentId,
   field,
+  progressChange,
 }: {
   old?: Service;
   studentId?: string;
   field?: ServiceEditorField;
+  progressChange?: { value: string; dismiss: () => void };
 }) {
   const { w, go } = useSite(),
-    b = useValues(old || emptyService),
+    b = useValues(old && progressChange ? { ...old, progress: progressChange.value, status: "", targets: [] } : old || emptyService),
     st = useValues(emptyStudent),
     mode = useValues({
       mode: studentId ? "existing" : "new",
@@ -251,12 +250,14 @@ export function ServiceEditor({
     !old &&
     (b.v.progress === "完成申请" ||
       (mode.v.phase === "completed" && cl.v.kind === "admission"));
-  const keys = serviceFormKeys(old, b.v, field);
-  const quick = !!field && field !== "work";
-  const updates = changed(old, b.v, field ? keys : Object.keys(emptyService));
+  const editedField = progressChange ? "progress" : field;
+  const keys = serviceFormKeys(old, b.v, editedField);
+  const quick = !!editedField && editedField !== "work";
+  const updates = changed(old, b.v, editedField ? keys : Object.keys(emptyService));
   return (
     <FormShell
-      unchanged={!!field && !Object.keys(updates).length}
+      unchanged={!!editedField && !Object.keys(updates).length}
+      onDismiss={progressChange?.dismiss}
       sources={
         old
           ? [{ path: "services/" + old.id, row: old, key: "expectedVersion" }]
@@ -330,7 +331,13 @@ export function ServiceEditor({
         </>
       )}
       <div className={quick ? "form-stack" : "form-grid"}>
-        {keys.map((k) => <ServiceField key={k} k={k} b={b} old={old} quick={quick} />)}
+        {keys.map((k) => {
+          if (progressChange && k === "progress") return null;
+          if (progressChange && k === "status") return (
+            <Select key={k} b={b} k={k} items={choices.status.filter((status) => status !== "未开始")} required autoFocus />
+          );
+          return <ServiceField key={k} k={k} b={b} old={old} quick={quick} />;
+        })}
       </div>
       {!old && (
         <>
