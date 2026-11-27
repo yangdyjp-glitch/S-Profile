@@ -12,6 +12,7 @@ import {
   Menu,
   ShieldCheck,
   UsersRound,
+  Wallet,
   X,
 } from "lucide-react";
 import {
@@ -39,9 +40,11 @@ import {
 import { Students, Workbench } from "./workbench";
 const adminImportsRoute = "admin/imports";
 const ImportPage = lazy(() => import("./import-page"));
+const RewardsPage = lazy(() => import("./rewards-page"));
 const nav = [
   { key: "services", name: "服务工作台", en: "Services", icon: LayoutDashboard },
   { key: "students", name: "学生档案", en: "Students", icon: UsersRound },
+  { key: "rewards", name: "奖励结算", en: "Rewards", icon: Wallet },
   { key: "catalogs", name: "业务名册", en: "Catalogs", icon: ContactRound },
   { key: "accounts", name: "账号管理", en: "Accounts", icon: ShieldCheck },
 ];
@@ -354,6 +357,10 @@ export default function Site() {
               <StudentDetail key={id} id={id} />
             ) : page === "service" ? (
               <ServiceDetail key={id} id={id} />
+            ) : page === "rewards" ? (
+              <Suspense fallback={<Empty title="正在打开奖励结算" />}>
+                <RewardsPage />
+              </Suspense>
             ) : adminImports ? (
               <Suspense fallback={<Empty title="正在打开管理后台" />}>
                 <ImportPage />

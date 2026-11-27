@@ -212,7 +212,7 @@ export function ExportDialog({ filters }: { filters: Filters }) {
     </>
   );
 }
-function SearchBox({
+export function SearchBox({
   value,
   change,
   placeholder,

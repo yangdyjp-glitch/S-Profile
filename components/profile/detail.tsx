@@ -17,7 +17,6 @@ import {
   newestEntries,
   orderedApps,
   phases,
-  roles,
   timeLabel,
   type EntryKind,
   type Revision,
@@ -27,7 +26,6 @@ import {
 import {
   ActionEditor,
   EntryEditor,
-  RewardEditor,
   SchoolEditor,
   ServiceEditor,
   StudentEditor,
@@ -440,7 +438,6 @@ export function ServiceDetail({ id }: { id: string }) {
         set={setTab}
         items={[
           ["base", "服务概况"],
-          ["rewards", "奖励结算"],
           ["history", "变更历史"],
         ]}
       />
@@ -531,44 +528,6 @@ export function ServiceDetail({ id }: { id: string }) {
               />
             </Section>
           </div>
-        </div>
-      )}
-      {tab === "rewards" && (
-        <div className="detail-grid">
-          {(["teacher", "manager"] as const).map((role) => {
-            const r = s.rewards[role],
-              current = role === "teacher" ? s.teacher : st.manager;
-            return (
-              <Section
-                key={role}
-                title={roles[role] + "奖励"}
-                action={
-                  <button
-                    className="row-action edit"
-                    onClick={() =>
-                      open(
-                        roles[role] + "奖励结算",
-                        <RewardEditor s={s} role={role} />,
-                      )
-                    }
-                  >
-                    编辑
-                  </button>
-                }
-              >
-                <Facts
-                  values={[
-                    ["当前负责人", cat(current, "待分配")],
-                    [
-                      r?.confirmed ? "已确认归属" : "建议归属",
-                      cat(r?.recipient || current, "待分配"),
-                    ],
-                    ["计入工资年月", r?.month || "未填写"],
-                  ]}
-                />
-              </Section>
-            );
-          })}
         </div>
       )}
       {tab === "history" && <History type="services" id={id} />}
