@@ -684,6 +684,36 @@ export function Months({
     </div>
   );
 }
+export function TargetMonths({ b, required = false }: { b: Binder; required?: boolean }) {
+  const targets: string[] = b.v.targets;
+  const rows = targets.length ? targets : [""];
+  return (
+    <div className="field wide-field" role="group" aria-label={labels.targets}>
+      <div className="field-label">
+        {labels.targets}{required && <b aria-hidden="true"> *</b>}
+        <button type="button" className="link mini" disabled={rows.includes("")}
+          onClick={() => b.set("targets", [...targets, ""])}>
+          <Plus size={13} />添加批次
+        </button>
+      </div>
+      {rows.map((month, index) => (
+        <div className="inline-add" key={index}>
+          <input type="month" name="targets" aria-label={labels.targets + " " + (index + 1)}
+            min="1000-04" max="9999-10" step={6} value={month}
+            required={required && !rows.some(Boolean) && index === 0}
+            onChange={(e) => b.set("targets", rows.map((v, i) => i === index ? e.currentTarget.value : v))} />
+          {(month || rows.length > 1) && (
+            <button type="button" className="icon" aria-label={"移除批次 " + (month || (index + 1))}
+              onClick={() => b.set("targets", rows.filter((_, i) => i !== index))}>
+              <X size={16} />
+            </button>
+          )}
+        </div>
+      ))}
+      <small>可选 4 月或 10 月</small>
+    </div>
+  );
+}
 export function Toggle({
   b,
   k,

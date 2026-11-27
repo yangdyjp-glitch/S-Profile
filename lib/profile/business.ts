@@ -67,8 +67,8 @@ function application(
   validateApplication(a, list, old);
   return a;
 }
-function targetStatus(s: Service) {
-  if (s.status === "未开始" || s.status === "当期申请")
+function initializeCurrentTargets(s: Service) {
+  if (!s.targets.length && (s.status === "未开始" || s.status === "当期申请"))
     s.targets = [...s.original];
 }
 export function transition(
@@ -108,8 +108,10 @@ export function transition(
       );
       s.phase = target;
       s.status = status;
-      s.targets = strings(input.targets);
-      targetStatus(s);
+      if (Object.hasOwn(input, "targets")) {
+        s.targets = strings(input.targets).sort();
+        updateExceptions(s, { targets: s.targets });
+      }
       return "恢复服务";
     }
     case "apply":
@@ -257,7 +259,8 @@ export async function business(
       closures: [],
       rewards: {},
     };
-    targetStatus(s);
+    s.targets.sort();
+    initializeCurrentTargets(s);
     const apps = (
       Array.isArray(input.applications) ? input.applications : []
     ).map((raw) => application(object(raw), s.id, list));
@@ -362,17 +365,14 @@ export async function business(
         old.original.length &&
         JSON.stringify(s.original) !== JSON.stringify(old.original)
       )
-        fail("original", "原合同入学目标已留档，延期请修改当前目标");
+        fail("original", "原合同入学目标已留档，请修改当前入学目标");
       if (
         (old.phase === "paused" || old.phase === "completed") &&
         s.status !== old.status
       )
         fail("status", "请先恢复服务或撤回结案再修改学生状况");
-      if (
-        s.status !== old.status ||
-        (old.phase !== "completed" && old.phase !== "paused")
-      )
-        targetStatus(s);
+      if (Object.hasOwn(input, "targets")) s.targets.sort();
+      else if (!old.original.length && s.original.length) initializeCurrentTargets(s);
       updateExceptions(s, input);
       action = "修改服务资料";
     } else throw new Problem(404, "此服务操作不存在");

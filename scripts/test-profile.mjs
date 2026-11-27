@@ -232,6 +232,22 @@ async function run() {
     { expectedVersion: 1, progress: "发邮件中" },
     { status: 422 },
   );
+  const editService = async (fields, status = 200) =>
+    call("services/" + vid, "PATCH", { expectedVersion: (await svc()).version, ...fields }, { status });
+  assert.deepEqual((await svc()).targets, service.original);
+  await editService({ targets: ["2027-10"] });
+  assert.equal((await svc()).status, "未开始");
+  await editService({ status: "当期申请" });
+  assert.deepEqual((await svc()).targets, ["2027-10"]);
+  await editService({ targets: ["2028-10", "2028-04"] });
+  await editService({ notes: "已核对目标" });
+  const editedService = await svc();
+  assert.equal(editedService.status, "当期申请");
+  assert.deepEqual(editedService.targets, ["2028-04", "2028-10"]);
+  assert.deepEqual(editedService.original, service.original);
+  await editService({ targets: ["2028-06"] }, 422);
+  await editService({ original: ["2028-04"] }, 422);
+  assert.equal((await svc()).version, editedService.version);
   await act("close", { kind: "admission" }, 422);
   await act("pause", { reason: "等待补件" });
   await act("resume", { status: "延期", targets: ["2027-04"] }, 422);
@@ -307,15 +323,18 @@ async function run() {
   assert.ok(Object.values(unchanged.data).every((records) => records.length === 0));
   assert.equal((await svc()).version, version + 1);
   await act("close", { kind: "admission" });
+  await editService({ targets: ["2029-04"] });
+  assert.deepEqual((await svc()).closures.at(-1).targets, ["2028-04"]);
   await call("students/" + sid, "PATCH", {
     expectedVersion: 1,
     name: "验收新姓名",
     location: "日本",
   });
   const second = await call("students/" + sid + "/services", "POST", {
-    service: { ...service, status: "当期申请" },
+    service: { ...service, status: "当期申请", targets: ["2027-10"] },
   });
   assert.notEqual(second.id, vid);
+  assert.deepEqual((await call("services/" + second.id)).targets, ["2027-10"]);
   await act("reopen");
   assert.equal((await svc()).phase, "applying");
   assert.equal((await call("students/" + sid)).name, "验收新姓名");
@@ -336,6 +355,7 @@ async function run() {
   await act("reopen");
   assert.equal((await svc()).status, "暂停中");
   await act("resume", { status: "当期申请" });
+  assert.deepEqual((await svc()).targets, ["2029-04"]);
   const long = "=原样公式文本 " + "文字🌿".repeat(10000) + "\n".repeat(280);
   const first = await call("students/" + sid + "/entries", "POST", {
     kind: "progress",

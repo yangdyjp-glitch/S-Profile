@@ -117,8 +117,9 @@ export function validateService(
   ] as const)
     option(k, s[k]);
   option("status", s.status, ["暂停中"]);
-  if ([...s.original, ...s.targets].some((v) => !intake(v)))
-    fail("original", "入学目标只接受 4 月或 10 月");
+  for (const key of ["original", "targets"] as const)
+    if (s[key].some((v) => !intake(v)))
+      fail(key, labels[key] + "只接受 4 月或 10 月");
   if (
     s.status === "延期" &&
     !s.missing?.includes("targets") &&

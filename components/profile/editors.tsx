@@ -27,6 +27,7 @@ import {
   request,
   Select,
   studentPath,
+  TargetMonths,
   Text,
   Toggle,
   useSite,
@@ -102,7 +103,7 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" })
     </FormShell>
   );
 }
-export type ServiceListField = "major" | "projects" | "status" | "targets";
+export type ServiceListField = "major" | "projects" | "statusTargets";
 type ServiceFormKey = keyof typeof emptyService;
 const serviceEditHeadings: Partial<Record<ServiceFormKey, string>> = {
   channel: "合同与目标",
@@ -110,16 +111,12 @@ const serviceEditHeadings: Partial<Record<ServiceFormKey, string>> = {
   special: "特记与备注",
 };
 function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField | "progress"): ServiceFormKey[] {
-  const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
+  const statusFields: ServiceFormKey[] = (old && !field) || v.status === "延期" ? ["status", "targets"] : ["status"];
   if (!field) return [
     "channel", "teacher", "projects", "major", "original", ...statusFields,
     "collection", "production", "progress", "risk", "publication", "special", "notes",
   ];
-  const active = old?.phase === "progress" || old?.phase === "applying";
-  if ((field === "status" || field === "targets") && active) {
-    const contractTarget = v.status === "未开始" || v.status === "当期申请";
-    return ["status", contractTarget ? "original" : "targets"];
-  }
+  if (field === "statusTargets") return ["status", "targets"];
   if (field === "progress") {
     return ["progress", ...statusFields];
   }
@@ -137,14 +134,9 @@ function ServiceField({ b, k, old, quick }: { b: Binder; k: ServiceFormKey; old?
     case "major":
       return <Text b={b} k={k} type={quick ? "area" : "text"} wide required={required} />;
     case "original":
-      return (
-        <>
-          <Months b={b} k={k} required={required} disabled={!!old?.original.length} />
-          {quick && !!old?.original.length && <small>当前目标采用原合同批次。调整到更晚的批次时，请选择“延期”。</small>}
-        </>
-      );
+      return <Months b={b} k={k} required={required} disabled={!!old?.original.length} />;
     case "targets":
-      return <Months b={b} k={k} required={required} />;
+      return <TargetMonths b={b} required={required && b.v.status === "延期"} />;
     case "status":
       return <Select b={b} k={k} required={required}
         disabled={old?.phase === "paused" || old?.phase === "completed"}
@@ -239,8 +231,8 @@ export function ServiceEditor({
   field?: ServiceListField;
   progressChange?: { value: string; dismiss: () => void };
 }) {
-  const { w, go } = useSite(),
-    b = useValues(old && progressChange ? { ...old, progress: progressChange.value, status: "", targets: [] } : old || emptyService),
+  const { w, go, open } = useSite(),
+    b = useValues(old && progressChange ? { ...old, progress: progressChange.value, status: "" } : old || emptyService),
     st = useValues(emptyStudent),
     mode = useValues({
       mode: studentId ? "existing" : "new",
@@ -257,10 +249,15 @@ export function ServiceEditor({
   const editedField = progressChange ? "progress" : field;
   const keys = serviceFormKeys(old, b.v, editedField);
   const quick = !!editedField;
-  const updates = changed(old, b.v, editedField ? keys : Object.keys(emptyService));
+  const values = { ...b.v, targets: b.v.targets.filter(Boolean) };
+  const updates = changed(old, values, keys);
+  const hasChanges = Object.keys(updates).length > 0;
+  const statusAction = field === "statusTargets" && old &&
+    (old.phase === "paused" ? { action: "resume", label: "恢复服务" } :
+      old.phase === "completed" ? { action: "reopen", label: "撤回误结案" } : undefined);
   return (
     <FormShell
-      unchanged={!!old && !Object.keys(updates).length}
+      unchanged={!!old && !hasChanges}
       onDismiss={progressChange?.dismiss}
       sources={
         old
@@ -289,7 +286,7 @@ export function ServiceEditor({
               {
                 studentId: mode.v.mode === "existing" ? mode.v.studentId : "",
                 student: studentPayload(st.v),
-                service: b.v,
+                service: { ...values, targets: keys.includes("targets") ? values.targets : [] },
                 phase: mode.v.phase,
                 reason: mode.v.reason,
                 closure: cl.v,
@@ -345,6 +342,13 @@ export function ServiceEditor({
             <Fragment key={k}>
               {heading && <h3 className="form-head wide-field">{heading}</h3>}
               <ServiceField k={k} b={b} old={old} quick={quick} />
+              {k === "status" && statusAction && old && (
+                <button type="button" className="link" disabled={hasChanges}
+                  title={hasChanges ? "请先保存目标时间" : undefined}
+                  onClick={() => open(statusAction.label, <ActionEditor s={old} action={statusAction.action} />)}>
+                  {statusAction.label}
+                </button>
+              )}
             </Fragment>
           );
         })}
@@ -394,6 +398,10 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
     close: "确认结案",
     resume: "恢复服务",
   };
+  const { targets, ...actionValues } = b.v;
+  const targetChanges = action === "resume" && b.v.status === "延期"
+    ? changed(s, { targets: targets.filter(Boolean) }, ["targets"])
+    : {};
   return (
     <FormShell
       submit={submit[action]}
@@ -402,7 +410,7 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
         write(
           "services/" + s.id + "/actions/" + action,
           "POST",
-          { ...b.v, expectedVersion: s.version, ...vs },
+          { ...actionValues, ...targetChanges, expectedVersion: s.version, ...vs },
           key,
         )
       }
@@ -426,7 +434,7 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
             required
           />
           <Select b={b} k="status" items={choices.status} required />
-          {b.v.status === "延期" && <Months b={b} k="targets" required />}
+          {b.v.status === "延期" && <TargetMonths b={b} required />}
         </div>
       )}
       {action === "close" && (

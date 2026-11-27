@@ -44,12 +44,8 @@ import { WorkbenchChoices } from "./workbench-choices";
 type ListActions = Pick<ReturnType<typeof useSite>, "open" | "go" | "write" | "refresh" | "notice">;
 type ListField = ServiceListField | "name" | "entry";
 const fieldNames: Record<ListField, string> = {
-  name: "姓名", major: "专业", projects: "合同项目", status: "学生状况", targets: "入学目标",
+  name: "姓名", major: "专业", projects: "合同项目", statusTargets: "学生状况与目标时间",
   entry: "最新跟进",
-};
-const statusTransitions: Partial<Record<Phase, { action: string; label: string }>> = {
-  paused: { action: "resume", label: "恢复服务" },
-  completed: { action: "reopen", label: "撤回误结案" },
 };
 const phaseIcons = {
   progress: CirclePlay,
@@ -295,17 +291,14 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
   const closure = completed ? currentClosure(s) : undefined;
   const entryKind = s.phase === "applying" ? "application" : "progress";
   const projects = s.projects.map((p) => nameOf(p));
-  const statusTransition = statusTransitions[s.phase];
+  const status = s.status || "状况待补";
   const targets = s.targets.join(" / ") || "目标待补";
   const updatedAt = Date.parse(s.updatedAt);
 
   function edit(field: ListField, anchor: HTMLButtonElement) {
-    const transition = field === "status" ? statusTransition : undefined;
-    const title = transition?.label || (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
+    const title = (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
     let editor;
-    if (transition) {
-      editor = <ActionEditor s={s} action={transition.action} />;
-    } else if (field === "name") {
+    if (field === "name") {
       editor = <StudentEditor old={st} field={field} />;
     } else if (field === "entry") {
       editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
@@ -320,14 +313,11 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
     format?: string,
     content: React.ReactNode = value,
   ) => {
-    const hint = field === "status" && statusTransition
-      ? value + "（" + statusTransition.label + "后可修改）"
-      : value;
     return (
       <button type="button" className="cell-edit" aria-haspopup="dialog"
-        aria-label={fieldNames[field] + " · " + st.name + " · " + hint}
-        title={hint} onClick={(e) => edit(field, e.currentTarget)}>
-        <span className={format} title={hint}>{content}</span>
+        aria-label={fieldNames[field] + " · " + st.name + " · " + value}
+        title={value} onClick={(e) => edit(field, e.currentTarget)}>
+        <span className={format}>{content}</span>
       </button>
     );
   };
@@ -350,8 +340,7 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
           </div>
         </td>
         <td className="status-target-cell">
-          {fieldButton("status", s.status || "状况待补")}
-          <small>{fieldButton("targets", targets)}</small>
+          {fieldButton("statusTargets", status + " · " + targets, undefined, <>{status}<small>{targets}</small></>)}
         </td>
         <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
         <td>

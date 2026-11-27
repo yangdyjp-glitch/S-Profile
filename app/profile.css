@@ -1025,8 +1025,13 @@ summary:hover {
   line-height: inherit;
   border-radius: 3px;
 }
-.status-target-cell .cell-edit {
-  min-height: 0;
+.status-target-cell {
+  position: relative;
+}
+.status-target-cell .cell-edit::after {
+  content: "";
+  position: absolute;
+  inset: 0;
 }
 .cell-choice {
   position: relative;
