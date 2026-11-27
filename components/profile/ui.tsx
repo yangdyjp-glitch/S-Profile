@@ -81,6 +81,9 @@ export const SiteContext = createContext<{
   go: (path: string) => void;
 }>({} as any);
 export const useSite = () => useContext(SiteContext);
+export function studentPath(studentId: string, serviceId?: string) {
+  return "student/" + studentId + (serviceId ? "/service/" + serviceId : "");
+}
 export function Brand() {
   return (
     <div className="brand">

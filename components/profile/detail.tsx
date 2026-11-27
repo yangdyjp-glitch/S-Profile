@@ -1,17 +1,15 @@
 "use client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   FileClock,
   GraduationCap,
   Pencil,
   Plus,
-  UserRound,
 } from "lucide-react";
 import {
   closureKinds,
   currentClosure,
-  entryKinds,
   labelOf,
   labels,
   newestEntries,
@@ -37,6 +35,7 @@ import {
   Facts,
   request,
   Section,
+  studentPath,
   useSite,
 } from "./ui";
 import { PageHead } from "./workbench";
@@ -68,16 +67,16 @@ function Tabs({
 function Timeline({
   st,
   kind,
-  title = entryKinds[kind],
   nested = false,
 }: {
   st: Student;
   kind: EntryKind;
-  title?: string;
   nested?: boolean;
 }) {
   const { w, open } = useSite(),
     [filter, setFilter] = useState("");
+  const title = kind === "progress" ? "学生跟进" : "出愿跟进";
+  const addLabel = kind === "progress" ? "新增跟进" : "新增出愿跟进";
   const entries = useMemo(() => newestEntries(
     w.entries.filter((e) => e.studentId === st.id && e.kind === kind && !e.voided),
   ), [w.entries, st.id, kind]);
@@ -94,7 +93,7 @@ function Timeline({
       action={
         <select
           className="compact"
-          aria-label="按记录年月筛选"
+          aria-label={"按" + title + "年月筛选"}
           value={filter}
           onChange={(e) => setFilter(e.target.value)}
         >
@@ -112,13 +111,13 @@ function Timeline({
           className="btn"
           onClick={() =>
             open(
-              "新增" + entryKinds[kind],
+              addLabel,
               <EntryEditor kind={kind} studentId={st.id} />,
             )
           }
         >
           <Plus size={15} />
-          新增记录
+          {addLabel}
         </button>
       </div>
       {shown.length ? (
@@ -168,7 +167,7 @@ function Timeline({
     </Section>
   );
 }
-export function History({ type, id }: { type: string; id: string }) {
+function History({ type, id, action }: { type: "students" | "services"; id: string; action?: ReactNode }) {
   const { w } = useSite(),
     [rows, setRows] = useState<Revision[]>([]),
     [has, setHas] = useState(true),
@@ -177,6 +176,7 @@ export function History({ type, id }: { type: string; id: string }) {
   useEffect(() => {
     let valid = true;
     setBusy(true);
+    setError("");
     request<Revision[]>("history/" + type + "/" + id)
       .then((r) => {
         if (valid) {
@@ -209,7 +209,7 @@ export function History({ type, id }: { type: string; id: string }) {
     }
   }
   return (
-    <Section title="变更历史">
+    <Section title="变更历史" action={action}>
       <div className="section-pad history-list">
         <ErrorBox message={error} />
         {rows.map((r) => {
@@ -277,7 +277,7 @@ function Applications({ s }: { s: Service }) {
           onClick={() => open("登记学校申请", <SchoolEditor s={s} />, true)}
         >
           <Plus size={16} />
-          登记已递交申请
+          登记学校申请
         </button>
       }
     >
@@ -345,21 +345,14 @@ function Applications({ s }: { s: Service }) {
         </div>
       ) : (
         <Empty title="暂无已递交的学校申请">
-          准备中的学校可以先写入学生的出愿情况。
+          准备中的学校可以先写入出愿跟进。
         </Empty>
       )}
     </Section>
   );
 }
-export function ServiceDetail({ id }: { id: string }) {
-  const { w, open, go } = useSite(),
-    [tab, setTab] = useState("base"),
-    s = w.services.find((s) => s.id === id);
-  if (!s) return <Empty title="找不到这份服务" />;
-  const st = w.students.find((t) => t.id === s.studentId)!,
-    cat = (v: string, fall?: string) => labelOf(w.catalogs, v, fall),
-    projects = s.projects.map((id) => cat(id)),
-    closure = currentClosure(s);
+function ServiceActions({ s }: { s: Service }) {
+  const { open } = useSite();
   const actions: Record<string, string> = {
     apply: "进入出愿",
     pause: "暂停服务",
@@ -377,169 +370,132 @@ export function ServiceDetail({ id }: { id: string }) {
           ? ["return", "close"]
           : ["reopen"];
   return (
-    <>
-      <PageHead
-        title={st.name + "的服务"}
-        subtitle={s.major || "专业方向待补"}
-        actions={
-          <>
-            <button className="btn" onClick={() => go("student/" + st.id)}>
-              <UserRound size={16} />
-              学生档案
-            </button>
-            <button
-              className="btn primary"
-              onClick={() =>
-                open("编辑服务资料", <ServiceEditor old={s} />, true)
-              }
-            >
-              <Pencil size={15} />
-              编辑服务
-            </button>
-          </>
-        }
-      />
-      <div className="detail-summary">
-        <div>
-          <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>
-          <b><ProjectNames names={projects} fallback="合同项目待补" /></b>
-        </div>
-        <div className="actions">
-          {ops.map((action) => (
-            <button
-              className="btn"
-              key={action}
-              onClick={() =>
-                open(actions[action], <ActionEditor s={s} action={action} />)
-              }
-            >
-              {actions[action]}
-            </button>
-          ))}
-          {s.phase === "completed" && (
-            <button
-              className="btn"
-              onClick={() =>
-                open(
-                  "再次办理 · 新服务",
-                  <ServiceEditor studentId={st.id} />,
-                  true,
-                )
-              }
-            >
-              <Plus size={16} />
-              再次办理
-            </button>
-          )}
-        </div>
-      </div>
-      <Tabs
-        tab={tab}
-        set={setTab}
-        items={[
-          ["base", "服务概况"],
-          ["history", "变更历史"],
-        ]}
-      />
-      {tab === "base" && (
-        <div className="detail-grid">
-          <Section title="合同与目标">
-            <Facts
-              values={[
-                ["甲方渠道", cat(s.channel)],
-                ["合同项目", <ProjectNames key="projects" names={projects} />],
-                ["专业方向", s.major],
-                ["教务老师", cat(s.teacher, "教务待分配")],
-                ["当前学管", cat(st.manager, "学管待分配")],
-                ["首次签单", st.orderMonth],
-                ["原合同入学目标", s.original.join("、")],
-                ["当前入学目标", s.targets.join("、")],
-              ]}
-            />
-          </Section>
-          <Section title="工作进度">
-            <Facts
-              values={[
-                [s.phase === "completed" ? "结束前状况" : "学生状况", s.status],
-                ["材料准备", s.collection],
-                ["材料制作", s.production],
-                ["申请进度", s.progress],
-                ["申请风险", s.risk],
-                ["学校出愿信息", s.publication],
-              ]}
-            />
-          </Section>
-          {closure && (
-            <Section title={"完成情况 · " + closureKinds[closure.kind]}>
-              <Facts
-                values={[
-                  ["结束时入学目标", closure.targets.join("、")],
-                  ["结案说明", closure.note || "未填写"],
-                  ["结案时间", timeLabel(closure.at)],
-                ]}
-              />
-              {closure.kind === "admission" && (
-                <details className="section-pad">
-                  <summary>查看全部合格申请</summary>
-                  {w.applications
-                    .filter(
-                      (a) => a.serviceId === s.id && a.admitted && !a.voided,
-                    )
-                    .map((a) => (
-                      <p key={a.id}>
-                        {cat(a.school)} · <ProjectNames names={cat(a.project)} /> {a.program}
-                      </p>
-                    ))}
-                </details>
-              )}
-            </Section>
-          )}
-          {s.pauses.length > 0 && (
-            <Section title="暂停历史">
-              <div className="section-pad">
-                {s.pauses.map((p, i) => (
-                  <p key={i}>
-                    {timeLabel(p.start)} 至{" "}
-                    {p.end
-                      ? timeLabel(p.end)
-                      : s.phase === "completed"
-                        ? "结案时"
-                        : "未恢复"}{" "}
-                    · {p.reason || "未填原因"}
-                  </p>
-                ))}
-              </div>
-            </Section>
-          )}
-          <div className="overview-records stack">
-            <Timeline st={st} kind="progress" title="学生跟进情况" />
-            <Section title="申请与出愿">
-              <div className="detail-grid application-grid">
-                <Applications s={s} />
-                <Timeline st={st} kind="application" nested />
-              </div>
-            </Section>
-            <Section title="特记事项与备注">
-              <Facts
-                values={[
-                  ["特记事项", s.special || "未填写"],
-                  ["备注", s.notes || "未填写"],
-                ]}
-              />
-            </Section>
-          </div>
-        </div>
-      )}
-      {tab === "history" && <History type="services" id={id} />}
-    </>
+    <div className="actions">
+      {ops.map((action) => (
+        <button className="btn" key={action}
+          onClick={() => open(actions[action], <ActionEditor s={s} action={action} />)}>
+          {actions[action]}
+        </button>
+      ))}
+    </div>
   );
 }
-export function StudentDetail({ id }: { id: string }) {
-  const { w, open, go } = useSite(),
-    [tab, setTab] = useState("base"),
-    st = w.students.find((s) => s.id === id);
+function ServicePanels({ s }: { s: Service }) {
+  const { w, open } = useSite();
+  const cat = (id: string, fallback?: string) => labelOf(w.catalogs, id, fallback);
+  const projects = s.projects.map((id) => cat(id));
+  const closure = currentClosure(s);
+  return (
+    <div className="detail-grid">
+      <Section title="合同与目标" action={
+        <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
+          <Pencil size={15} /> 编辑服务
+        </button>
+      }>
+        <Facts
+          values={[
+            ["甲方渠道", cat(s.channel)],
+            ["合同项目", <ProjectNames key="projects" names={projects} />],
+            ["专业方向", s.major],
+            ["教务老师", cat(s.teacher, "教务待分配")],
+            ["原合同入学目标", s.original.join("、")],
+            ["当前入学目标", s.targets.join("、")],
+          ]}
+        />
+      </Section>
+      <Section title="工作进度" action={
+        <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
+          <Pencil size={15} /> 编辑工作进度
+        </button>
+      }>
+        <Facts
+          values={[
+            [s.phase === "completed" ? "结束前状况" : "学生状况", s.status],
+            ["材料准备", s.collection],
+            ["材料制作", s.production],
+            ["申请进度", s.progress],
+            ["申请风险", s.risk],
+            ["学校出愿信息", s.publication],
+          ]}
+        />
+      </Section>
+      {closure && (
+        <Section title={"完成情况 · " + closureKinds[closure.kind]}>
+          <Facts
+            values={[
+              ["结束时入学目标", closure.targets.join("、")],
+              ["结案说明", closure.note || "未填写"],
+              ["结案时间", timeLabel(closure.at)],
+            ]}
+          />
+          {closure.kind === "admission" && (
+            <details className="section-pad">
+              <summary>查看全部合格申请</summary>
+              {w.applications
+                .filter(
+                  (a) => a.serviceId === s.id && a.admitted && !a.voided,
+                )
+                .map((a) => (
+                  <p key={a.id}>
+                    {cat(a.school)} · <ProjectNames names={cat(a.project)} /> {a.program}
+                  </p>
+                ))}
+            </details>
+          )}
+        </Section>
+      )}
+      {s.pauses.length > 0 && (
+        <Section title="暂停历史">
+          <div className="section-pad">
+            {s.pauses.map((p, i) => (
+              <p key={i}>
+                {timeLabel(p.start)} 至{" "}
+                {p.end
+                  ? timeLabel(p.end)
+                  : s.phase === "completed"
+                    ? "结案时"
+                    : "未恢复"}{" "}
+                · {p.reason || "未填原因"}
+              </p>
+            ))}
+          </div>
+        </Section>
+      )}
+    </div>
+  );
+}
+const servicePriority = { progress: 0, applying: 0, paused: 1, completed: 2 };
+
+export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId?: string; legacy: boolean }) {
+  const { w, open, go } = useSite();
+  const [tab, setTab] = useState("overview");
+  const [historyScope, setHistoryScope] = useState("student");
+  const st = w.students.find((student) => student.id === id);
+  const choices = useMemo(() => {
+    const services = w.services.filter((service) => service.studentId === id);
+    services.sort((a, b) => servicePriority[a.phase] - servicePriority[b.phase] ||
+      b.updatedAt.localeCompare(a.updatedAt) || a.id.localeCompare(b.id));
+    return services.map((service) => {
+      const projects = service.projects.map((p) => labelOf(w.catalogs, p));
+      const label = [
+        projects.join("、") || "合同项目待补", service.targets.join("、") || "目标待补",
+        phases[service.phase], service.major,
+      ].filter(Boolean).join(" · ");
+      return { service, projects, label };
+    });
+  }, [id, w.services, w.catalogs]);
+  const selected = serviceId ? choices.find(({ service }) => service.id === serviceId) : choices[0];
+  const s = selected?.service;
+  const selectedId = s?.id;
+  useEffect(() => {
+    if (!selectedId || (!legacy && serviceId)) return;
+    const original = legacy ? "service/" + selectedId : studentPath(id);
+    if (location.hash === "#" + original) {
+      location.replace("#" + studentPath(id, selectedId));
+    }
+  }, [id, serviceId, selectedId, legacy]);
   if (!st) return <Empty title="找不到学生档案" />;
-  const services = w.services.filter((s) => s.studentId === id);
+  const historyServiceId = historyScope === "service" ? selectedId : undefined;
   return (
     <>
       <PageHead
@@ -549,10 +505,10 @@ export function StudentDetail({ id }: { id: string }) {
           <>
             <button
               className="btn"
-              onClick={() => open("编辑学生档案", <StudentEditor old={st} />)}
+              onClick={() => open("编辑学生资料", <StudentEditor old={st} />)}
             >
               <Pencil size={15} />
-              编辑档案
+              编辑学生资料
             </button>
             <button
               className="btn primary"
@@ -566,63 +522,77 @@ export function StudentDetail({ id }: { id: string }) {
           </>
         }
       />
-      <Tabs
-        tab={tab}
-        set={setTab}
-        items={[
-          ["base", "档案概况"],
-          ["progress", "常规进度"],
-          ["application", "出愿情况"],
-          ["history", "变更历史"],
-        ]}
-      />
-      {tab === "base" && (
-        <div className="stack">
-          <Section title="共有资料">
-            <Facts
-              values={[
-                ["首次签单", st.orderMonth],
-                ["所在地", st.location],
-                ["当前学管", labelOf(w.catalogs, st.manager, "学管待分配")],
-                ["语言声明", st.declaration || "历史待补"],
-                ["JLPT", st.jlpt || "未填写"],
-                ["托福", st.toefl || "未填写"],
-                ["雅思", st.ielts || "未填写"],
-                ["托业", st.toeic || "未填写"],
-              ]}
-            />
+      <section className="panel student-summary" aria-label="学生资料">
+        <Facts values={[
+          ["所在地", st.location],
+          ["当前学管", labelOf(w.catalogs, st.manager, "学管待分配")],
+          ["首次签单", st.orderMonth],
+        ]} />
+        <details>
+          <summary>语言成绩 <small>{st.declaration || "历史待补"}</small></summary>
+          <Facts values={[
+            ["JLPT", st.jlpt || "未填写"],
+            ["托福", st.toefl || "未填写"],
+            ["雅思", st.ielts || "未填写"],
+            ["托业", st.toeic || "未填写"],
+          ]} />
+        </details>
+      </section>
+      <section className="detail-summary" aria-label="当前服务">
+        {choices.length > 1 || (choices.length > 0 && !selected) ? (
+          <label className="service-choice">
+            <span>当前服务（共 {choices.length} 份）</span>
+            <select aria-label="切换服务" value={s?.id || ""}
+              onChange={(e) => go(studentPath(id, e.target.value))}>
+              {!selected && <option value="" disabled>请选择该生的服务</option>}
+              {choices.map((choice) => (
+                <option key={choice.service.id} value={choice.service.id}>
+                  {choice.label}{choices.some((other) => other !== choice && other.label === choice.label)
+                    ? " · " + choice.service.id : ""}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : selected && s ? (
+          <div>
+            <span className="subtle">当前服务</span>
+            <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>
+            <b><ProjectNames names={selected.projects} fallback="合同项目待补" /></b>
+            {s.targets.length > 0 && <span>{s.targets.join("、")}</span>}
+          </div>
+        ) : <span className="subtle">暂无服务</span>}
+        {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
+        {s && <ServiceActions s={s} />}
+      </section>
+      <Tabs tab={tab} set={setTab} items={[["overview", "服务与跟进"], ["history", "变更历史"]]} />
+      {tab === "overview" ? (
+        <div className="overview-records stack">
+          {s && <ServicePanels s={s} />}
+          <Timeline st={st} kind="progress" />
+          <Section title="申请与出愿">
+            <div className={s ? "detail-grid application-grid" : undefined}>
+              {s && <Applications s={s} />}
+              <Timeline st={st} kind="application" nested />
+            </div>
           </Section>
-          <Section title={"历次服务 · " + services.length}>
-            {services.length ? (
-              <div className="record-list">
-                {services.map((s) => (
-                  <article key={s.id}>
-                    <span className={"stage-pill " + s.phase}>
-                      {phases[s.phase]}
-                    </span>
-                    <button
-                      className="row-name"
-                      onClick={() => go("service/" + s.id)}
-                    >
-                      {s.major || "查看服务"}
-                    </button>
-                    <small>
-                      <ProjectNames names={s.projects.map((p) => labelOf(w.catalogs, p))} />{" "}
-                      · {s.targets.join("、") || "目标待补"}
-                    </small>
-                  </article>
-                ))}
-              </div>
-            ) : (
-              <Empty title="暂无服务" />
-            )}
-          </Section>
+          {s && (
+            <Section title="特记事项与备注">
+              <Facts values={[["特记事项", s.special || "未填写"], ["备注", s.notes || "未填写"]]} />
+            </Section>
+          )}
         </div>
+      ) : (
+        <History key={historyServiceId || id}
+          type={historyServiceId ? "services" : "students"} id={historyServiceId || id}
+          action={s && (
+            <select className="compact" aria-label="历史范围" value={historyScope}
+              onChange={(e) => setHistoryScope(e.target.value)}>
+              <option value="student">该生全部记录</option>
+              <option value="service">仅当前服务</option>
+            </select>
+          )}
+        />
       )}
-      {(tab === "progress" || tab === "application") && (
-        <Timeline key={tab} st={st} kind={tab} />
-      )}
-      {tab === "history" && <History type="students" id={id} />}
     </>
   );
 }

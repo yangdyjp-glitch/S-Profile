@@ -2,7 +2,7 @@
 import { useMemo, useState } from "react";
 import { phases, roles } from "../../lib/profile/model";
 import { RewardEditor } from "./editors";
-import { Empty, useSite } from "./ui";
+import { Empty, studentPath, useSite } from "./ui";
 import { PageHead, PageNav, SearchBox } from "./workbench";
 
 const rewardRoles = ["teacher", "manager"] as const;
@@ -108,7 +108,7 @@ export default function RewardsPage() {
                   <tr key={service.id}>
                     <td>
                       <div className="actions">
-                        <button className="row-name" onClick={() => go("service/" + service.id)}>{studentName}</button>
+                        <button className="row-name" onClick={() => go(studentPath(service.studentId, service.id))}>{studentName}</button>
                         <span className={"stage-pill " + service.phase}>{phases[service.phase]}</span>
                       </div>
                       <small>{projects || "合同项目待补"}{service.major && " · " + service.major}</small>

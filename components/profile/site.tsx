@@ -24,7 +24,7 @@ import {
 import { defaultFilters, type Filters } from "../../lib/profile/list";
 import { mergeWorkspace, type WorkspaceUpdate } from "../../lib/profile/sync";
 import { Accounts, CatalogPage } from "./admin";
-import { ServiceDetail, StudentDetail } from "./detail";
+import { StudentDetail } from "./detail";
 import { PasswordEditor } from "./editors";
 import { Login } from "./login";
 import {
@@ -56,7 +56,11 @@ export default function Site() {
     [checking, setChecking] = useState(true),
     [error, setError] = useState("");
   const [route, setRoute] = useState("services"),
+    [detailList, setDetailList] = useState("students"),
     [filters, setFilters] = useState<Filters>(defaultFilters),
+    [serviceListPage, setServiceListPage] = useState(1),
+    [studentQuery, setStudentQuery] = useState(""),
+    [studentListPage, setStudentListPage] = useState(1),
     [view, setView] = useState<View | null>(null),
     [toast, notice] = useState(""),
     [menu, setMenu] = useState(false),
@@ -154,6 +158,9 @@ export default function Site() {
     setProfile(false);
     setCan(false);
     setFilters(defaultFilters);
+    setStudentQuery("");
+    setStudentListPage(1);
+    setServiceListPage(1);
   }, []);
   const access = useCallback(async () => {
     const generation = session.current;
@@ -173,11 +180,24 @@ export default function Site() {
   }, [refresh, apply]);
   useEffect(() => {
     void access();
+    let lastList = "students";
     const hash = () => {
       if (location.hash === "#imports") {
         window.history.replaceState(window.history.state, "", "#" + adminImportsRoute);
       }
-      setRoute(location.hash.slice(1) || "services");
+      const path = location.hash.slice(1) || "services";
+      const section = path.split("/")[0];
+      if (["services", "students", "rewards"].includes(section)) lastList = section;
+      if (section === "student" || section === "service") {
+        const saved = window.history.state?.profileList;
+        if (["services", "students", "rewards"].includes(saved)) lastList = saved;
+        else if (section === "service") lastList = "services";
+        if (saved !== lastList) {
+          window.history.replaceState({ ...window.history.state, profileList: lastList }, "");
+        }
+        setDetailList(lastList);
+      }
+      setRoute(path);
       setMenu(false);
       setProfile(false);
       setView(null);
@@ -222,10 +242,11 @@ export default function Site() {
   if (checking && !user) return <Empty title="正在打开工作台" />;
   if (!user)
     return <Login canSetup={canSetup} refresh={access} accessError={error} />;
-  const [page, id] = route.split("/"),
+  const [page, id, child, selectedServiceId] = route.split("/"),
     adminImports = route === adminImportsRoute && user.role === "admin",
-    active =
-      page === "service" ? "services" : page === "student" ? "students" : page,
+    studentDetail = page === "student" || page === "service",
+    legacyService = page === "service" ? w.services.find((s) => s.id === id) : undefined,
+    active = studentDetail ? detailList : page,
     section = nav.find((n) => n.key === active);
   const open = (title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
     setView({ title, node, wide, anchor });
@@ -327,15 +348,17 @@ export default function Site() {
                 <Menu size={20} />
               </button>
               {page !== "services" && (
-                <div className="breadcrumbs">
+                <div className={studentDetail ? "breadcrumbs student-crumbs" : "breadcrumbs"}>
                   <span>{adminImports ? "管理后台" : "工作空间"}</span>
                   <ChevronRight size={14} />
-                  <b>{adminImports ? "导入核对" : section?.name || "工作台"}</b>
-                  {(page === "student" || page === "service") && id && (
+                  {studentDetail ? (
                     <>
+                      <button className="row-name" onClick={() => go(detailList)}>{section?.name}</button>
                       <ChevronRight size={14} />
-                      <span>详情</span>
+                      <b>学生详情</b>
                     </>
+                  ) : (
+                    <b>{adminImports ? "导入核对" : section?.name || "工作台"}</b>
                   )}
                 </div>
               )}
@@ -350,13 +373,18 @@ export default function Site() {
             {!loaded ? (
               <Empty title="正在读取服务资料" />
             ) : page === "services" ? (
-              <Workbench filters={filters} setFilters={setFilters} />
+              <Workbench filters={filters} setFilters={setFilters} page={serviceListPage} setPage={setServiceListPage} />
             ) : page === "students" ? (
-              <Students />
-            ) : page === "student" ? (
-              <StudentDetail key={id} id={id} />
-            ) : page === "service" ? (
-              <ServiceDetail key={id} id={id} />
+              <Students q={studentQuery} search={setStudentQuery} page={studentListPage} setPage={setStudentListPage} />
+            ) : page === "service" && !legacyService ? (
+              <Empty title="找不到这份服务" />
+            ) : studentDetail ? (
+              <StudentDetail
+                key={legacyService?.studentId || id}
+                id={legacyService?.studentId || id}
+                serviceId={legacyService?.id || (child === "service" ? selectedServiceId : undefined)}
+                legacy={page === "service"}
+              />
             ) : page === "rewards" ? (
               <Suspense fallback={<Empty title="正在打开奖励结算" />}>
                 <RewardsPage />

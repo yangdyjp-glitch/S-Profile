@@ -1293,6 +1293,37 @@ summary:hover {
   gap: 10px;
   flex-wrap: wrap;
 }
+.student-summary {
+  margin-bottom: 1rem;
+}
+.student-summary details {
+  border-top: 1px solid var(--line);
+}
+.student-summary summary {
+  padding: 10px 20px;
+  color: var(--deep);
+  font-weight: 600;
+}
+.student-summary summary small {
+  margin-inline-start: 8px;
+  font-weight: 400;
+}
+.service-choice {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  flex: 1 1 24rem;
+  gap: 6px 12px;
+  min-width: 0;
+}
+.service-choice span {
+  color: var(--muted);
+}
+.service-choice select {
+  flex: 1 1 14rem;
+  min-width: 0;
+  max-width: 36rem;
+}
 .detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -1893,6 +1924,14 @@ summary:hover {
   .member,
   .breadcrumbs {
     font-size: 0.82rem;
+  }
+  .student-crumbs {
+    gap: 5px;
+    white-space: nowrap;
+  }
+  .student-crumbs > span:first-child,
+  .student-crumbs > span:first-child + svg {
+    display: none;
   }
 }
 @media (pointer: coarse) {

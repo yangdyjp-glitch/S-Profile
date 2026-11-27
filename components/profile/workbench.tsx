@@ -34,7 +34,7 @@ import {
   serviceRows,
   type Filters,
 } from "../../lib/profile/list";
-import { Empty, ErrorBox, Field, request, useSite } from "./ui";
+import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
 type ListField = ServiceListField | "name" | "manager" | "entry";
@@ -277,13 +277,16 @@ function AdmittedSchools({ service, admissions, nameOf }: {
 export function Workbench({
   filters: f,
   setFilters,
+  page,
+  setPage,
 }: {
   filters: Filters;
   setFilters: (v: Filters) => void;
+  page: number;
+  setPage: (page: number) => void;
 }) {
   const { w, open, go } = useSite(),
-    [more, setMore] = useState(false),
-    [page, setPage] = useState(1);
+    [more, setMore] = useState(false);
   const set = (k: keyof Filters, v: string) => {
     setFilters({ ...f, [k]: v });
     setPage(1);
@@ -518,7 +521,7 @@ export function Workbench({
                     <tr key={s.id}>
                       <td>
                         <div className="name-actions">
-                          <button className="row-name one-line" title={st.name} onClick={() => go("service/" + s.id)}>
+                          <button className="row-name one-line" title={st.name} onClick={() => go(studentPath(st.id, s.id))}>
                             {st.name}
                           </button>
                           <button className="name-edit" title="修改姓名" aria-label={"修改姓名 · " + st.name}
@@ -611,19 +614,25 @@ export function Workbench({
     </>
   );
 }
-export function Students() {
-  const { w, go, open } = useSite(),
-    [q, search] = useState(""),
-    [page, setPage] = useState(1);
+export function Students({ q, search, page, setPage }: {
+  q: string;
+  search: (query: string) => void;
+  page: number;
+  setPage: (page: number) => void;
+}) {
+  const { w, go, open } = useSite();
   const rows = useMemo(() => {
+    const term = q.trim().toLowerCase();
     const matches = new Set<string>();
-    if (q) {
+    if (term) {
       for (const entry of w.entries) {
-        if (!entry.voided && entry.body.includes(q)) matches.add(entry.studentId);
+        if (!entry.voided && entry.body.toLowerCase().includes(term)) matches.add(entry.studentId);
       }
     }
-    return w.students.filter((s) => s.name.includes(q) || matches.has(s.id))
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
+    const nameMatches = (name: string) => name.toLowerCase().includes(term);
+    return w.students.filter((s) => nameMatches(s.name) || matches.has(s.id))
+      .sort((a, b) => Number(nameMatches(b.name)) - Number(nameMatches(a.name)) ||
+        a.name.localeCompare(b.name, "zh-CN") || a.id.localeCompare(b.id));
   }, [w.students, w.entries, q]),
     current = Math.min(page, Math.max(1, Math.ceil(rows.length / 24)));
   const serviceCounts = useMemo(() => {
@@ -681,7 +690,7 @@ export function Students() {
                       <button
                         className="row-name one-line"
                         title={s.name}
-                        onClick={() => go("student/" + s.id)}
+                        onClick={() => go(studentPath(s.id))}
                       >
                         {s.name}
                       </button>

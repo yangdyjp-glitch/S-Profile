@@ -6,7 +6,6 @@ import {
   emptyApplication,
   emptyService,
   emptyStudent,
-  entryKinds,
   passwordLength,
   phases,
   requiresActiveStatus,
@@ -27,6 +26,7 @@ import {
   Months,
   request,
   Select,
+  studentPath,
   Text,
   Toggle,
   useSite,
@@ -94,7 +94,7 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" | 
         )
       }
       after={(r) => {
-        if (!old) go("student/" + r.id);
+        if (!old) go(studentPath(r.id));
       }}
     >
       {field === "name" && <Text b={b} k="name" required />}
@@ -104,9 +104,11 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" | 
   );
 }
 export type ServiceListField = "major" | "projects" | "status" | "targets" | "teacher" | "progress" | "risk";
+type ServiceEditorField = ServiceListField | "work";
 type ServiceFormKey = keyof typeof emptyService;
-function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField): ServiceFormKey[] {
+function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceEditorField): ServiceFormKey[] {
   const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
+  if (field === "work") return [...statusFields, "collection", "production", "progress", "risk", "publication"];
   if (!field) return [
     "channel", "teacher", "projects", "major", "original", ...statusFields,
     "collection", "production", "progress", "risk", "publication", "special", "notes",
@@ -232,7 +234,7 @@ export function ServiceEditor({
 }: {
   old?: Service;
   studentId?: string;
-  field?: ServiceListField;
+  field?: ServiceEditorField;
 }) {
   const { w, go } = useSite(),
     b = useValues(old || emptyService),
@@ -250,6 +252,7 @@ export function ServiceEditor({
     (b.v.progress === "完成申请" ||
       (mode.v.phase === "completed" && cl.v.kind === "admission"));
   const keys = serviceFormKeys(old, b.v, field);
+  const quick = !!field && field !== "work";
   const updates = changed(old, b.v, field ? keys : Object.keys(emptyService));
   return (
     <FormShell
@@ -261,7 +264,7 @@ export function ServiceEditor({
       }
       submit={old ? "保存修改" : "建立服务"}
       after={(r) => {
-        if (!old) go("service/" + r.id);
+        if (!old) go(studentPath(r.studentId, r.id));
       }}
       save={(vs, key, write) =>
         old
@@ -319,14 +322,15 @@ export function ServiceEditor({
               k="studentId"
               title="选择学生"
               required
+              disabled={!!studentId}
               items={w.students.map((s) => [s.id, s.name] as const)}
             />
           )}
           <h3 className="form-head">本次服务</h3>
         </>
       )}
-      <div className={field ? "form-stack" : "form-grid"}>
-        {keys.map((k) => <ServiceField key={k} k={k} b={b} old={old} quick={!!field} />)}
+      <div className={quick ? "form-stack" : "form-grid"}>
+        {keys.map((k) => <ServiceField key={k} k={k} b={b} old={old} quick={quick} />)}
       </div>
       {!old && (
         <>
@@ -475,7 +479,7 @@ export function SchoolEditor({
       ) : (
         <>
           <p className="form-intro">
-            仅登记已经实际递交的学校申请。筹备中的学校可写入学生的出愿情况。
+            仅登记已经实际递交的学校申请。筹备中的学校可写入出愿跟进。
           </p>
           <SchoolFields b={b} old={old} />
         </>
@@ -520,7 +524,7 @@ export function EntryEditor({
       }
     >
       {voiding ? (
-        <p>作废这条{entryKinds[kind]}，原文和操作记录将保留在变更历史中。</p>
+        <p>作废这条{kind === "progress" ? "学生跟进" : "出愿跟进"}，原文和操作记录将保留在变更历史中。</p>
       ) : (
         <div className="form-stack">
           <Text
@@ -534,7 +538,7 @@ export function EntryEditor({
             required={!old || old.precision === "date"}
             hint={old?.rawDate ? "原日期文字 " + old.rawDate : undefined}
           />
-          <Text b={b} k="body" type="area" title={entryKinds[kind]} required />
+          <Text b={b} k="body" type="area" title="跟进内容" required />
         </div>
       )}
     </FormShell>
