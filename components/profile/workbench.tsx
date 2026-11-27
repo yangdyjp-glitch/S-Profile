@@ -317,7 +317,7 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
   const fieldButton = (
     field: ListField,
     value: string,
-    format = "one-line",
+    format?: string,
     content: React.ReactNode = value,
   ) => {
     const hint = field === "status" && statusTransition
@@ -340,7 +340,7 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
       <tr ref={row}>
         <td>
           <div className="name-actions">
-            <button className="row-name one-line" title={st.name} onClick={() => go(studentPath(st.id, s.id))}>
+            <button className="row-name" title={st.name} onClick={() => go(studentPath(st.id, s.id))}>
               {st.name}
             </button>
             <button className="name-edit" title="修改姓名" aria-label={"修改姓名 · " + st.name}
@@ -351,7 +351,7 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
         </td>
         <td className="status-target-cell">
           {fieldButton("status", s.status || "状况待补")}
-          <small>{fieldButton("targets", targets, "two-lines")}</small>
+          <small>{fieldButton("targets", targets)}</small>
         </td>
         <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
         <td>
@@ -606,6 +606,11 @@ export function Workbench({
             role="region"
             aria-label={phases[f.phase] + "服务表格"}
             tabIndex={0}
+            onFocus={(e) => {
+              if (e.currentTarget.scrollWidth > e.currentTarget.clientWidth && e.target.matches(":focus-visible")) {
+                e.target.closest("td:not(:first-child)")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+              }
+            }}
             onScroll={(e) => {
               const { scrollTop, scrollLeft } = e.currentTarget;
               scrollPositionRef.current = { top: scrollTop, left: scrollLeft };

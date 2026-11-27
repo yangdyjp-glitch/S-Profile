@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { flushSync } from "react-dom";
+import { ChevronDown } from "lucide-react";
 import { catalogOptionLabel, choices, requiresActiveStatus, type Catalog, type Service, type Student } from "../../lib/profile/model";
 import { ApiError, type useSite } from "./ui";
 
@@ -68,22 +69,26 @@ export function WorkbenchChoices({ service, student, staff, actions, draftProgre
       : choices[field].map((item) => [item, item]);
     return (
       <td key={field}>
-        <select
-          className="cell-edit cell-select"
-          name={field}
-          aria-label={label + " · " + student.name}
-          aria-busy={saving?.field === field}
-          title={display}
-          value={value}
-          disabled={!!saving}
-          onFocus={() => populate(field)}
-          onPointerDown={() => populate(field)}
-          onChange={(e) => void change(choice, e.currentTarget.value)}
-        >
-          {(!value || opened[field]) && <option value="" disabled={!personnel && !service.missing?.includes(field)}>{placeholder}</option>}
-          {value && !options.some(([id]) => id === value) && <option value={value} disabled={!!opened[field]}>{display}</option>}
-          {options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-        </select>
+        <div className={"cell-edit cell-choice" + (field === "progress" ? " progress-choice" : "")}>
+          <span aria-hidden="true">{display}</span>
+          <ChevronDown size={13} aria-hidden="true" />
+          <select
+            className="cell-select"
+            name={field}
+            aria-label={label + " · " + student.name}
+            aria-busy={saving?.field === field}
+            title={display}
+            value={value}
+            disabled={!!saving}
+            onFocus={() => populate(field)}
+            onPointerDown={() => populate(field)}
+            onChange={(e) => void change(choice, e.currentTarget.value)}
+          >
+            {(!value || opened[field]) && <option value="" disabled={!personnel && !service.missing?.includes(field)}>{placeholder}</option>}
+            {value && !options.some(([id]) => id === value) && <option value={value} disabled={!!opened[field]}>{display}</option>}
+            {options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+        </div>
       </td>
     );
   });
