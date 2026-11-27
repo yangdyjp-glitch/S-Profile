@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Plus, Search } from "lucide-react";
 import { catalogs, passwordLength, type Account, type Catalog, type Kind } from "../../lib/profile/model";
 import { CatalogEditor } from "./editors";
+import { projectLevel } from "./project-names";
 import {
   ApiError,
   Empty,
@@ -38,7 +39,7 @@ function DeleteCatalog({ item }: { item: Catalog }) {
         }
       }}
     >
-      <p>确认从{catalogs[item.kind]}名册删除「<strong>{item.name}</strong>」？</p>
+      <p>确认从{catalogs[item.kind]}名册删除「<strong data-project-level={item.kind === "project" ? projectLevel(item.name) : undefined}>{item.name}</strong>」？</p>
       <p>此项会从新增资料的选项中移除。已有档案和奖励记录会保留原名称。</p>
     </FormShell>
   );
@@ -115,7 +116,7 @@ export function CatalogPage() {
               <tbody>
                 {items.map((c) => (
                   <tr key={c.id}>
-                    <td>{c.name}</td>
+                    <td data-project-level={kind === "project" ? projectLevel(c.name) : undefined}>{c.name}</td>
                     {kind === "school" && (
                       <td>{c.aliases.join("、") || "—"}</td>
                     )}

@@ -103,7 +103,7 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" | 
     </FormShell>
   );
 }
-export type ServiceListField = "major" | "projects" | "targets" | "teacher" | "progress" | "risk";
+export type ServiceListField = "major" | "projects" | "status" | "targets" | "teacher" | "progress" | "risk";
 type ServiceFormKey = keyof typeof emptyService;
 function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField): ServiceFormKey[] {
   const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
@@ -112,7 +112,7 @@ function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceLis
     "collection", "production", "progress", "risk", "publication", "special", "notes",
   ];
   const active = old?.phase === "progress" || old?.phase === "applying";
-  if (field === "targets" && active) {
+  if ((field === "status" || field === "targets") && active) {
     const contractTarget = v.status === "未开始" || v.status === "当期申请";
     return ["status", contractTarget ? "original" : "targets"];
   }

@@ -36,10 +36,15 @@ import {
 } from "../../lib/profile/list";
 import { Empty, ErrorBox, Field, request, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
+import { projectLevel, ProjectNames } from "./project-names";
 type ListField = ServiceListField | "name" | "manager" | "entry";
 const fieldNames: Record<ListField, string> = {
-  name: "姓名", major: "专业", projects: "合同项目", targets: "入学目标",
+  name: "姓名", major: "专业", projects: "合同项目", status: "学生状况", targets: "入学目标",
   teacher: "教务", manager: "学管", progress: "申请进度", risk: "潜在风险", entry: "最新跟进",
+};
+const statusTransitions: Partial<Record<Phase, { action: string; label: string }>> = {
+  paused: { action: "resume", label: "恢复服务" },
+  completed: { action: "reopen", label: "撤回误结案" },
 };
 const phaseIcons = {
   progress: CirclePlay,
@@ -260,9 +265,8 @@ function AdmittedSchools({ service, admissions, nameOf }: {
               {nameOf(a.school, "学校名称待补")}
             </span>
             <small>
-              {[nameOf(a.project, "项目待补"), a.program]
-                .filter(Boolean)
-                .join(" · ")}
+              <ProjectNames names={nameOf(a.project, "项目待补")} />
+              {a.program && " · " + a.program}
             </small>
           </button>
         </li>
@@ -420,12 +424,16 @@ export function Workbench({
           <div className="filter-box" id="service-filters">
             {filters.map(({ k, title, items }) => (
               <Field label={title} key={k}>
-                <select value={f[k]} onChange={(e) => set(k, e.target.value)}>
+                <select
+                  value={f[k]}
+                  onChange={(e) => set(k, e.target.value)}
+                  data-project-level={k === "project" ? projectLevel(names.get(f[k])) : undefined}
+                >
                   <option value="">全部</option>
                   {items.map((o) => {
                     const [v, label] = typeof o === "string" ? [o, o] : o;
                     return (
-                      <option value={v} key={v}>
+                      <option value={v} key={v} data-project-level={k === "project" ? projectLevel(label) : undefined}>
                         {label}
                       </option>
                     );
@@ -450,8 +458,9 @@ export function Workbench({
               <thead>
                 <tr>
                   <th scope="col" className="name-col">姓名</th>
+                  <th scope="col" className="status-target-col">学生状况 / 目标时间</th>
                   <th scope="col" className="major-col">专业</th>
-                  <th scope="col" className="contract-col">合同项目 / 目标</th>
+                  <th scope="col" className="contract-col">合同项目</th>
                   <th scope="col" className="staff-col">教务</th>
                   <th scope="col" className="staff-col">学管</th>
                   <th scope="col" className="progress-col">申请进度</th>
@@ -467,30 +476,44 @@ export function Workbench({
                     closure = completed ? currentClosure(s) : undefined,
                     entryKind = s.phase === "applying" ? "application" : "progress",
                     log = latest.get(st.id + "|" + entryKind);
-                  const projects = s.projects.map((p) => cat(p)).join("、") || "待补";
+                  const projects = s.projects.map((p) => cat(p));
+                  const statusTransition = statusTransitions[s.phase];
                   const targets = s.targets.join(" / ") || "目标待补";
                   const teacher = cat(s.teacher, "待分配");
                   const manager = cat(st.manager, "待分配");
                   const updatedAt = Date.parse(s.updatedAt);
                   function edit(field: ListField, anchor: HTMLButtonElement) {
-                    const title = (field === "entry" && !log ? "新增" : "修改") + fieldNames[field] + " · " + st.name;
+                    const transition = field === "status" ? statusTransition : undefined;
+                    const title = transition?.label || (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
                     let editor;
-                    if (field === "name" || field === "manager") {
+                    if (transition) {
+                      editor = <ActionEditor s={s} action={transition.action} />;
+                    } else if (field === "name" || field === "manager") {
                       editor = <StudentEditor old={st} field={field} />;
                     } else if (field === "entry") {
                       editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
                     } else {
                       editor = <ServiceEditor old={s} field={field} />;
                     }
-                    open(title, editor, false, anchor);
+                    open(title + " · " + st.name, editor, false, anchor);
                   }
-                  const fieldButton = (field: ListField, value: string, format = "one-line") => (
-                    <button type="button" className="cell-edit" aria-haspopup="dialog"
-                      aria-label={fieldNames[field] + " · " + st.name + " · " + value}
-                      title={value} onClick={(e) => edit(field, e.currentTarget)}>
-                      <span className={format} title={value}>{value}</span>
-                    </button>
-                  );
+                  const fieldButton = (
+                    field: ListField,
+                    value: string,
+                    format = "one-line",
+                    content: React.ReactNode = value,
+                  ) => {
+                    const hint = field === "status" && statusTransition
+                      ? value + "（" + statusTransition.label + "后可修改）"
+                      : value;
+                    return (
+                      <button type="button" className="cell-edit" aria-haspopup="dialog"
+                        aria-label={fieldNames[field] + " · " + st.name + " · " + hint}
+                        title={hint} onClick={(e) => edit(field, e.currentTarget)}>
+                        <span className={format} title={hint}>{content}</span>
+                      </button>
+                    );
+                  };
                   return (
                     <tr key={s.id}>
                       <td>
@@ -504,10 +527,13 @@ export function Workbench({
                           </button>
                         </div>
                       </td>
+                      <td className="status-target-cell">
+                        {fieldButton("status", s.status || "状况待补")}
+                        <small>{fieldButton("targets", targets, "two-lines")}</small>
+                      </td>
                       <td>{fieldButton("major", s.major || "专业待补", "two-lines")}</td>
-                      <td className="contract-cell">
-                        {fieldButton("projects", projects)}
-                        <small>{fieldButton("targets", targets)}</small>
+                      <td>
+                        {fieldButton("projects", projects.join("、") || "待补", "project-list", <ProjectNames names={projects} />)}
                       </td>
                       <td>{fieldButton("teacher", teacher)}</td>
                       <td>{fieldButton("manager", manager)}</td>

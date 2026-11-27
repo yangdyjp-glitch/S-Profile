@@ -33,7 +33,7 @@ import {
   StudentEditor,
 } from "./editors";
 import {
-  display,
+  displayField,
   Empty,
   ErrorBox,
   Facts,
@@ -42,6 +42,7 @@ import {
   useSite,
 } from "./ui";
 import { PageHead } from "./workbench";
+import { ProjectNames } from "./project-names";
 function Tabs({
   tab,
   set,
@@ -241,9 +242,9 @@ export function History({ type, id }: { type: string; id: string }) {
                   <div className="history-diff" key={k}>
                     <b>{labels[k]}</b>
                     {r.before && (
-                      <span>原值 {display(before[k], w.catalogs)}</span>
+                      <span>原值 {displayField(k, before[k], w.catalogs)}</span>
                     )}
-                    <span>现值 {display(after[k], w.catalogs)}</span>
+                    <span>现值 {displayField(k, after[k], w.catalogs)}</span>
                   </div>
                 ))}
                 {!keys.length && <p>关联记录已更新。</p>}
@@ -293,7 +294,7 @@ function Applications({ s }: { s: Service }) {
                 <div>
                   <h4>{cat(a.school)}</h4>
                   <small>
-                    {cat(a.project)}
+                    <ProjectNames names={cat(a.project)} />
                     {a.program ? " · " + a.program : ""}
                   </small>
                 </div>
@@ -359,6 +360,7 @@ export function ServiceDetail({ id }: { id: string }) {
   if (!s) return <Empty title="找不到这份服务" />;
   const st = w.students.find((t) => t.id === s.studentId)!,
     cat = (v: string, fall?: string) => labelOf(w.catalogs, v, fall),
+    projects = s.projects.map((id) => cat(id)),
     closure = currentClosure(s);
   const actions: Record<string, string> = {
     apply: "进入出愿",
@@ -402,7 +404,7 @@ export function ServiceDetail({ id }: { id: string }) {
       <div className="detail-summary">
         <div>
           <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>
-          <b>{s.projects.map((v) => cat(v)).join("、") || "合同项目待补"}</b>
+          <b><ProjectNames names={projects} fallback="合同项目待补" /></b>
         </div>
         <div className="actions">
           {ops.map((action) => (
@@ -448,7 +450,7 @@ export function ServiceDetail({ id }: { id: string }) {
             <Facts
               values={[
                 ["甲方渠道", cat(s.channel)],
-                ["合同项目", s.projects.map((v) => cat(v)).join("、")],
+                ["合同项目", <ProjectNames key="projects" names={projects} />],
                 ["专业方向", s.major],
                 ["教务老师", cat(s.teacher, "教务待分配")],
                 ["当前学管", cat(st.manager, "学管待分配")],
@@ -488,7 +490,7 @@ export function ServiceDetail({ id }: { id: string }) {
                     )
                     .map((a) => (
                       <p key={a.id}>
-                        {cat(a.school)} · {cat(a.project)} {a.program}
+                        {cat(a.school)} · <ProjectNames names={cat(a.project)} /> {a.program}
                       </p>
                     ))}
                 </details>
@@ -646,7 +648,7 @@ export function StudentDetail({ id }: { id: string }) {
                       {s.major || "查看服务"}
                     </button>
                     <small>
-                      {s.projects.map((p) => labelOf(w.catalogs, p)).join("、")}{" "}
+                      <ProjectNames names={s.projects.map((p) => labelOf(w.catalogs, p))} />{" "}
                       · {s.targets.join("、") || "目标待补"}
                     </small>
                   </article>

@@ -10,6 +10,7 @@ import {
   type ReactNode,
 } from "react";
 import { Check, ClipboardList, LoaderCircle, Plus, X } from "lucide-react";
+import { projectLevel, ProjectNames } from "./project-names";
 import {
   catalogOptionLabel,
   catalogs,
@@ -249,7 +250,7 @@ export function FormShell({
                   .map((k) => (
                     <div key={k}>
                       <dt>{labels[k]}</dt>
-                      <dd>{display(r[k], w.catalogs)}</dd>
+                      <dd>{displayField(k, r[k], w.catalogs)}</dd>
                     </div>
                   ))}
               </dl>
@@ -299,6 +300,13 @@ export function display(v: unknown, items: Catalog[]): string {
     String(v),
     phases[v as keyof typeof phases] || String(v),
   );
+}
+export function displayField(key: string, value: unknown, items: Catalog[]): ReactNode {
+  if (key === "projects" || key === "project") {
+    const ids = Array.isArray(value) ? value : [value];
+    return <ProjectNames names={ids.map((id) => display(id, items))} />;
+  }
+  return display(value, items);
 }
 export function Field({
   label,
@@ -508,7 +516,7 @@ export function CatalogField({
                   )
                 }
               />
-              {catalogOptionLabel(c)}
+              <span data-project-level={kind === "project" ? projectLevel(c.name) : undefined}>{catalogOptionLabel(c)}</span>
             </label>
           ))}
         </div>
@@ -563,13 +571,14 @@ export function CatalogField({
         <select
           aria-label={labels[k] || catalogs[kind]}
           name={k}
+          data-project-level={kind === "project" ? projectLevel(labelOf(items, b.v[k], "")) : undefined}
           required={required}
           value={b.v[k] || ""}
           onChange={(e) => b.set(k, e.target.value)}
         >
           <option value="">{required ? "请选择" : "待分配"}</option>
           {items.map((c) => (
-            <option value={c.id} key={c.id}>
+            <option value={c.id} key={c.id} data-project-level={kind === "project" ? projectLevel(c.name) : undefined}>
               {catalogOptionLabel(c)}
             </option>
           ))}

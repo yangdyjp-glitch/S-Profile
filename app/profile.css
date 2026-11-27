@@ -947,20 +947,25 @@ summary:hover {
 }
 .services-table {
   --table-cell-padding: 6px 7px;
-  min-width: 52rem;
+  min-width: 60rem;
 }
 .services-table.with-closures {
-  min-width: 62rem;
+  min-width: 70rem;
 }
 .services-table .name-col {
   width: 10%;
 }
-.services-table .major-col,
+.services-table .status-target-col {
+  width: 9.25rem;
+}
+.services-table .major-col {
+  width: 12%;
+}
 .services-table .closure-col {
   width: 14%;
 }
 .services-table .contract-col {
-  width: 15%;
+  width: 10%;
 }
 .services-table .staff-col {
   width: 4.375rem;
@@ -1013,15 +1018,20 @@ summary:hover {
   line-height: inherit;
   border-radius: 3px;
 }
-.contract-cell .cell-edit {
+.status-target-cell .cell-edit {
   min-height: 0;
+}
+.services-table .project-list > span {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
 }
 .services-table :is(.cell-edit, .name-edit, .row-name):is(:hover, :focus-visible) {
   color: white;
   background: var(--primary);
   box-shadow: 0 0 0 2px var(--primary);
 }
-.services-table .cell-edit:is(:hover, :focus-visible) :is(.tag, small) {
+.services-table .cell-edit:is(:hover, :focus-visible) :is(.tag, small, [data-project-level]) {
   color: inherit;
 }
 .services-table .cell-edit:is(:hover, :focus-visible) .tag {

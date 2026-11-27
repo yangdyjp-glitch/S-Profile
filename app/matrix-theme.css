@@ -52,6 +52,18 @@
   --phase-ink: #46627c;
   --phase-bg: var(--neutral);
 }
+[data-project-level="master"] {
+  color: #826000;
+}
+[data-project-level="doctoral"] {
+  color: #176442;
+}
+[data-project-level="undergraduate"] {
+  color: #b32f70;
+}
+select[data-project-level] option:not([data-project-level]) {
+  color: var(--ink);
+}
 .row-action.view,
 .row-action.confirm {
   --action-ink: var(--primary);
