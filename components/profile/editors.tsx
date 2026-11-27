@@ -1,5 +1,6 @@
 "use client";
-import { Fragment } from "react";
+import { Fragment, useId } from "react";
+import { Plus } from "lucide-react";
 import {
   catalogOptionLabel,
   choices,
@@ -7,6 +8,7 @@ import {
   emptyApplication,
   emptyService,
   emptyStudent,
+  labels,
   passwordLength,
   phases,
   roles,
@@ -512,21 +514,31 @@ export function SchoolEditor({
     </FormShell>
   );
 }
+export type EntryDraft = Pick<Entry, "date" | "body">;
 export function EntryEditor({
   studentId,
   kind,
   old,
   voiding = false,
+  draft,
+  onNew,
+  onCancel,
 }: {
   studentId: string;
   kind: EntryKind;
   old?: Entry;
   voiding?: boolean;
+  draft?: EntryDraft;
+  onNew?: (draft: EntryDraft) => void;
+  onCancel?: () => void;
 }) {
-  const b = useValues(old || { date: tokyoDay(), body: "" });
+  const b = useValues(draft ?? old ?? { date: tokyoDay(), body: "" });
+  const dateId = useId();
+  const dateRequired = !old || old.precision === "date";
   return (
     <FormShell
       submit={voiding ? "确认作废" : "保存记录"}
+      onCancel={onCancel}
       sources={
         old
           ? [{ path: "entries/" + old.id, row: old, key: "expectedVersion" }]
@@ -550,19 +562,23 @@ export function EntryEditor({
     >
       {voiding ? (
         <p>作废这条{kind === "progress" ? "学生跟进" : "出愿跟进"}，原文和操作记录将保留在变更历史中。</p>
-      ) : (
+      ) : (busy) => (
         <div className="form-stack">
-          <Text
-            b={b}
-            k="date"
-            type={
-              old?.precision === "month" && old.date === b.v.date
-                ? "text"
-                : "date"
-            }
-            required={!old || old.precision === "date"}
-            hint={old?.rawDate ? "原日期文字 " + old.rawDate : undefined}
-          />
+          <div className="field">
+            <div className="field-label">
+              <label htmlFor={dateId}>{labels.date}{dateRequired && <b aria-hidden="true"> *</b>}</label>
+              {onNew && (
+                <button type="button" className="btn mini" aria-haspopup="dialog" disabled={busy}
+                  onClick={() => onNew({ date: b.v.date, body: b.v.body })}>
+                  <Plus size={15} aria-hidden="true" />新建跟进
+                </button>
+              )}
+            </div>
+            <input id={dateId} name="date" required={dateRequired} value={b.v.date}
+              type={old?.precision === "month" && old.date === b.v.date ? "text" : "date"}
+              onChange={(e) => b.set("date", e.currentTarget.value)} />
+            {old?.rawDate && <small>原日期文字 {old.rawDate}</small>}
+          </div>
           <Text b={b} k="body" type="area" title="跟进内容" required />
         </div>
       )}

@@ -226,8 +226,8 @@ export default function Site() {
     if (menu) dismissMenu();
     setProfile(false);
   }, [menu, dismissMenu]);
-  const open = useCallback((title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
-    setView({ title, node, wide, anchor });
+  const open = useCallback((title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement, onCancel?: () => void) => {
+    setView({ title, node, wide, anchor, onCancel });
     setProfile(false);
     setMenu(false);
   }, []);

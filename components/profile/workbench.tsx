@@ -38,7 +38,7 @@ import {
   type Filters,
 } from "../../lib/profile/list";
 import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
-import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
+import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type EntryDraft, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
 import { WorkbenchChoices } from "./workbench-choices";
 type ListActions = Pick<ReturnType<typeof useSite>, "open" | "go" | "write" | "refresh" | "notice">;
@@ -295,17 +295,26 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
   const targets = s.targets.join(" / ") || "目标待补";
   const updatedAt = Date.parse(s.updatedAt);
 
+  function openEntry(anchor: HTMLButtonElement, entry?: Entry, draft?: EntryDraft) {
+    const restoreEdit = !entry && log && draft ? () => openEntry(anchor, log, draft) : undefined;
+    open(
+      (entry ? "修改最新跟进" : "新建跟进") + " · " + st.name,
+      <EntryEditor key={entry?.id ?? "new"} studentId={st.id} kind={entryKind} old={entry}
+        draft={entry ? draft : undefined}
+        onNew={entry ? (pending) => openEntry(anchor, undefined, pending) : undefined}
+        onCancel={restoreEdit} />,
+      false, anchor, restoreEdit,
+    );
+  }
   function edit(field: ListField, anchor: HTMLButtonElement) {
-    const title = (field === "entry" && !log ? "新增" : "修改") + fieldNames[field];
+    if (field === "entry") return openEntry(anchor, log);
     let editor;
     if (field === "name") {
       editor = <StudentEditor old={st} field={field} />;
-    } else if (field === "entry") {
-      editor = <EntryEditor kind={entryKind} studentId={st.id} old={log} />;
     } else {
       editor = <ServiceEditor old={s} field={field} />;
     }
-    open(title + " · " + st.name, editor, false, anchor);
+    open("修改" + fieldNames[field] + " · " + st.name, editor, false, anchor);
   }
   const fieldButton = (
     field: ListField,

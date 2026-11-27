@@ -243,6 +243,12 @@ summary:hover {
 .field-label .mini {
   margin-left: auto;
 }
+.field-label .btn.mini {
+  min-height: 28px;
+  padding: 2px 8px;
+  color: var(--primary);
+  gap: 0.25rem;
+}
 .form-stack,
 .stack {
   display: grid;

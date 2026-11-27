@@ -23,7 +23,7 @@ import {
   type Workspace,
 } from "../../lib/profile/model";
 export type Values = Record<string, any>;
-export type View = { title: string; node: ReactNode; wide?: boolean; anchor?: HTMLButtonElement };
+export type View = { title: string; node: ReactNode; wide?: boolean; anchor?: HTMLButtonElement; onCancel?: () => void };
 export class ApiError extends Error {
   constructor(
     message: string,
@@ -75,7 +75,7 @@ export const SiteContext = createContext<{
   user: Account;
   refresh: () => Promise<void>;
   write: WorkspaceWrite;
-  open: (title: string, node: ReactNode, wide?: boolean, anchor?: HTMLButtonElement) => void;
+  open: (title: string, node: ReactNode, wide?: boolean, anchor?: HTMLButtonElement, onCancel?: () => void) => void;
   close: () => void;
   notice: (s: string) => void;
   go: (path: string) => void;
@@ -95,6 +95,7 @@ export function Brand() {
 export function Dialog({ view, close }: { view: View; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null),
     label = useId();
+  const cancel = view.onCancel ?? close;
   useEffect(() => {
     const d = ref.current!;
     d.showModal();
@@ -125,14 +126,14 @@ export function Dialog({ view, close }: { view: View; close: () => void }) {
       window.removeEventListener("scroll", position, true);
       d.close();
     };
-  }, [view.anchor]);
+  }, [view]);
   return (
     <dialog
       ref={ref}
       className={"dialog" + (view.wide ? " wide" : "") + (view.anchor ? " cell-dialog" : "")}
       aria-labelledby={label}
       closedby="closerequest"
-      onCancel={close}
+      onCancel={(event) => { event.preventDefault(); cancel(); }}
     >
       <header>
         <h2 id={label}>{view.title}</h2>
@@ -140,7 +141,7 @@ export function Dialog({ view, close }: { view: View; close: () => void }) {
           type="button"
           className="icon"
           aria-label="关闭"
-          onClick={close}
+          onClick={cancel}
         >
           <X size={19} />
         </button>
@@ -184,8 +185,9 @@ export function FormShell({
   sources = [],
   after,
   onDismiss,
+  onCancel,
 }: {
-  children: ReactNode;
+  children: ReactNode | ((busy: boolean) => ReactNode);
   save: (versions: Values, key: string, write: WorkspaceWrite) => Promise<any>;
   submit?: string;
   unchanged?: boolean;
@@ -193,6 +195,7 @@ export function FormShell({
   sources?: { path: string; row: Values; key: string }[];
   after?: (r: any) => void;
   onDismiss?: () => void;
+  onCancel?: () => void;
 }) {
   const { write, close, notice, w } = useSite();
   const dismiss = onDismiss ?? close;
@@ -214,6 +217,7 @@ export function FormShell({
       pending.current = { payload, key: crypto.randomUUID() };
     try {
       const result = await save(versions, pending.current!.key, write);
+      if (!formRef.current) return;
       dismiss();
       notice(successMessage);
       after?.(result);
@@ -239,7 +243,7 @@ export function FormShell({
       }}
     >
       <div className="dialog-body">
-        {children}
+        {typeof children === "function" ? children(busy) : children}
         <ErrorBox message={error} />
         {latest && (
           <div className="conflict">
@@ -280,7 +284,7 @@ export function FormShell({
         )}
       </div>
       <footer className="dialog-foot">
-        <button type="button" className="btn" onClick={dismiss}>
+        <button type="button" className="btn" onClick={onCancel ?? dismiss}>
           取消
         </button>
         <button className="btn primary" disabled={busy || !!latest || unchanged}>
