@@ -945,15 +945,22 @@ summary:hover {
   font-size: 0.9rem;
   line-height: 1.45;
 }
+.services-table,
+.students-table {
+  --student-name-width: 5ic;
+}
 .services-table {
   --table-cell-padding: 6px 7px;
+  --name-edit-width: 22px;
+  --name-edit-gap: 2px;
   min-width: 60rem;
 }
 .services-table.with-closures {
   min-width: 70rem;
 }
 .services-table .name-col {
-  width: 10%;
+  box-sizing: content-box;
+  width: calc(var(--student-name-width) + var(--name-edit-gap) + var(--name-edit-width));
 }
 .services-table .status-target-col {
   width: 9.25rem;
@@ -982,12 +989,12 @@ summary:hover {
   text-align: center;
   white-space: nowrap;
 }
-.services-table .one-line {
+:is(.services-table, .students-table) .one-line {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.services-table .row-name,
+:is(.services-table, .students-table) .row-name,
 .cell-edit > .one-line {
   display: block;
   max-width: 100%;
@@ -995,15 +1002,15 @@ summary:hover {
 .name-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: var(--name-edit-gap);
 }
-.name-actions .row-name {
-  min-width: 0;
+:is(.services-table, .students-table) .row-name {
+  width: var(--student-name-width);
 }
 .name-edit {
   display: grid;
   place-items: center;
-  flex: 0 0 22px;
+  flex: 0 0 var(--name-edit-width);
   height: 24px;
   padding: 0;
   color: var(--muted);
@@ -1059,6 +1066,10 @@ summary:hover {
 }
 .students-table {
   min-width: 42rem;
+}
+.students-table th:first-child {
+  box-sizing: content-box;
+  width: var(--student-name-width);
 }
 .accounts-table th:last-child {
   width: 28%;

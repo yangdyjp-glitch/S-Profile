@@ -679,7 +679,8 @@ export function Students() {
                   <tr key={s.id}>
                     <td>
                       <button
-                        className="row-name"
+                        className="row-name one-line"
+                        title={s.name}
                         onClick={() => go("student/" + s.id)}
                       >
                         {s.name}
