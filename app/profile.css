@@ -269,6 +269,9 @@ summary:hover {
   padding-top: 0;
   border: 0;
 }
+.form-grid > .form-head {
+  margin: 0;
+}
 .field small,
 .form-intro,
 .login-lede {
@@ -1427,22 +1430,15 @@ summary:hover {
 }
 .progress-summary {
   display: grid;
-  grid-template: "heading edit" auto "metrics metrics" auto / 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
   align-items: center;
   gap: 14px;
   padding: 16px 20px;
 }
-.progress-summary h2 {
-  grid-area: heading;
-}
 .progress-summary .facts {
-  grid-area: metrics;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
   padding: 0;
-}
-.progress-summary > button {
-  grid-area: edit;
 }
 @container (min-width: 28rem) {
   .progress-summary .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
@@ -1452,7 +1448,7 @@ summary:hover {
 }
 @container (min-width: 52rem) {
   .progress-summary {
-    grid-template: "heading metrics edit" auto / auto minmax(0, 1fr) auto;
+    grid-template-columns: auto minmax(0, 1fr);
     column-gap: 1.25rem;
   }
 }

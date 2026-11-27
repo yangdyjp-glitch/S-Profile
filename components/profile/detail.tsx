@@ -397,8 +397,8 @@ function ServiceActions({ s }: { s: Service }) {
           : ["reopen"];
   return (
     <div className="actions">
-      <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
-        <Pencil size={15} /> 编辑服务
+      <button className="btn" onClick={() => open("编辑服务与进度", <ServiceEditor old={s} />, true)}>
+        <Pencil size={15} /> 编辑服务与进度
       </button>
       {ops.map((action) => (
         <button className="btn" key={action}
@@ -410,7 +410,7 @@ function ServiceActions({ s }: { s: Service }) {
   );
 }
 function ServicePanels({ s }: { s: Service }) {
-  const { w, open } = useSite();
+  const { w } = useSite();
   const cat = (id: string, fallback?: string) => labelOf(w.catalogs, id, fallback);
   const closure = currentClosure(s);
   return (
@@ -427,9 +427,6 @@ function ServicePanels({ s }: { s: Service }) {
             ["学校出愿信息", s.publication],
           ]}
         />
-        <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
-          <Pencil size={15} /> 编辑工作进度
-        </button>
       </section>
       {closure && (
         <Section title={"完成情况 · " + closureKinds[closure.kind]}>

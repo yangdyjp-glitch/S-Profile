@@ -1,4 +1,5 @@
 "use client";
+import { Fragment } from "react";
 import {
   catalogOptionLabel,
   choices,
@@ -102,11 +103,14 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" })
   );
 }
 export type ServiceListField = "major" | "projects" | "status" | "targets";
-type ServiceEditorField = ServiceListField | "work";
 type ServiceFormKey = keyof typeof emptyService;
-function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceEditorField | "progress"): ServiceFormKey[] {
+const serviceEditHeadings: Partial<Record<ServiceFormKey, string>> = {
+  channel: "合同与目标",
+  status: "工作进度",
+  special: "特记与备注",
+};
+function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField | "progress"): ServiceFormKey[] {
   const statusFields: ServiceFormKey[] = v.status === "延期" ? ["status", "targets"] : ["status"];
-  if (field === "work") return [...statusFields, "collection", "production", "progress", "risk", "publication"];
   if (!field) return [
     "channel", "teacher", "projects", "major", "original", ...statusFields,
     "collection", "production", "progress", "risk", "publication", "special", "notes",
@@ -232,7 +236,7 @@ export function ServiceEditor({
 }: {
   old?: Service;
   studentId?: string;
-  field?: ServiceEditorField;
+  field?: ServiceListField;
   progressChange?: { value: string; dismiss: () => void };
 }) {
   const { w, go } = useSite(),
@@ -252,11 +256,11 @@ export function ServiceEditor({
       (mode.v.phase === "completed" && cl.v.kind === "admission"));
   const editedField = progressChange ? "progress" : field;
   const keys = serviceFormKeys(old, b.v, editedField);
-  const quick = !!editedField && editedField !== "work";
+  const quick = !!editedField;
   const updates = changed(old, b.v, editedField ? keys : Object.keys(emptyService));
   return (
     <FormShell
-      unchanged={!!editedField && !Object.keys(updates).length}
+      unchanged={!!old && !Object.keys(updates).length}
       onDismiss={progressChange?.dismiss}
       sources={
         old
@@ -336,7 +340,13 @@ export function ServiceEditor({
           if (progressChange && k === "status") return (
             <Select key={k} b={b} k={k} items={choices.status.filter((status) => status !== "未开始")} required autoFocus />
           );
-          return <ServiceField key={k} k={k} b={b} old={old} quick={quick} />;
+          const heading = old && !quick ? serviceEditHeadings[k] : undefined;
+          return (
+            <Fragment key={k}>
+              {heading && <h3 className="form-head wide-field">{heading}</h3>}
+              <ServiceField k={k} b={b} old={old} quick={quick} />
+            </Fragment>
+          );
         })}
       </div>
       {!old && (
