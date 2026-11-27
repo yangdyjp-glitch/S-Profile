@@ -533,14 +533,29 @@ async function run() {
     { eval: true },
   );
   try {
-    const response = await new Promise((res, rej) => {
-      worker.once("message", res);
-      worker.once("error", rej);
-      worker.postMessage(exp);
-    });
-    assert.equal(response.ok, true);
-    const output = new ExcelJS.Workbook();
-    await output.xlsx.load(response.buffer);
+    async function renderReport(data) {
+      const response = await new Promise((res, rej) => {
+        worker.once("error", rej);
+        worker.once("message", (result) => {
+          worker.off("error", rej);
+          res(result);
+        });
+        worker.postMessage(data);
+      });
+      assert.equal(response.ok, true);
+      const book = new ExcelJS.Workbook();
+      await book.xlsx.load(response.buffer);
+      for (const sheet of book.worksheets) {
+        assert.ok(!sheet.getRow(1).values.includes("学生编号"));
+        sheet.eachRow((row) => row.eachCell((cell) => {
+          assert.doesNotMatch(cell.text, /ST-[0-9a-f]{8}-[0-9a-f-]{27}/i);
+        }));
+      }
+      return book;
+    }
+    const output = await renderReport(exp);
+    const filteredReport = await renderReport(filtered);
+    assert.equal(filteredReport.getWorksheet("当前筛选").getCell("B2").text, "验收新姓名");
     const roster = output.getWorksheet("业务名册").getSheetValues();
     assert.ok(deletedItems.every((item) => !roster.some((r) => r?.[1] === item.id)));
     assert.ok(roster.some((r) => r?.[1] === replacement.id));
@@ -556,7 +571,7 @@ async function run() {
     );
     let text = "";
     logs.eachRow((row, n) => {
-      if (n > 1 && row.getCell(1).text === sid) {
+      if (n > 1 && row.getCell(1).text === "验收新姓名") {
         const c = row.getCell(headers.indexOf("2024-04"));
         text += c.text;
         assert.notEqual(c.type, ExcelJS.ValueType.Formula);
@@ -568,12 +583,13 @@ async function run() {
     const columns = details.getRow(1).values;
     assert.ok(!columns.includes("原录入人"));
     const detail = details.getSheetValues().find((r) => r?.[1] === april[0].id);
+    assert.equal(detail[columns.indexOf("学生姓名")], "独立历史档案");
     assert.equal(detail[columns.indexOf("正文")], april[0].body);
     assert.equal(detail[columns.indexOf("业务日期")], april[0].date);
     assert.equal(detail[columns.indexOf("来源")], april[0].source);
     const pendingDetail = details.getSheetValues().find((r) => r?.[1] === yearMissing.id);
     assert.equal(pendingDetail[columns.indexOf("正文")], yearMissing.body);
-    const monthly = logs.getSheetValues().find((r) => r?.[1] === april[0].studentId)[headers.indexOf("2024-04")];
+    const monthly = logs.getSheetValues().find((r) => r?.[1] === "独立历史档案")[headers.indexOf("2024-04")];
     assert.match(monthly, /2024-04-15  早期进度（程）/u);
     assert.doesNotMatch(monthly, /作者未知|04\.15：/u);
     assert.ok(output.getWorksheet("来源单元格").rowCount > 10);

@@ -104,6 +104,27 @@ function workbook(data: ExportData) {
     } while (ids + slice * capacity < heads.length);
   }
   const students = new Map(data.students.map((s) => [s.id, s]));
+  const studentName = (id: string | null) => id ? students.get(id)?.name || "姓名待补" : "";
+  function reportSnapshot(raw: string | null) {
+    if (!raw) return "";
+    try {
+      return JSON.stringify(JSON.parse(raw, (_key, record) => {
+        if (!record || typeof record !== "object") return record;
+        if (typeof record.studentId === "string") {
+          record.studentName = studentName(record.studentId);
+          delete record.studentId;
+        }
+        if (typeof record.id === "string" && (students.has(record.id) || record.id.startsWith("ST-"))) {
+          if (!record.name) record.studentName = studentName(record.id);
+          delete record.id;
+        }
+        return record;
+      }));
+    } catch {
+      // Preserve plain-text source resolutions.
+      return raw;
+    }
+  }
   const latest = new Map<string, string>();
   for (const e of newestEntries(data.entries.filter((e) => !e.voided))) {
     const key = e.studentId + "|" + e.kind;
@@ -114,7 +135,6 @@ function workbook(data: ExportData) {
       name,
       [
         "服务编号",
-        "学生编号",
         "姓名",
         "阶段",
         "所在地",
@@ -154,7 +174,6 @@ function workbook(data: ExportData) {
           c = currentClosure(s);
         return [
           s.id,
-          s.studentId,
           st?.name,
           phases[s.phase],
           st?.location,
@@ -238,7 +257,6 @@ function workbook(data: ExportData) {
     table(
       "学生档案",
       [
-        "学生编号",
         "姓名",
         "首次接单",
         "所在地",
@@ -251,7 +269,6 @@ function workbook(data: ExportData) {
         "待补字段",
       ],
       data.students.map((s) => [
-        s.id,
         s.name,
         s.orderMonth,
         s.location,
@@ -329,20 +346,18 @@ function workbook(data: ExportData) {
       }
       table(
         title,
-        ["学生编号", "姓名", ...months],
+        ["姓名", ...months],
         Array.from(groups, ([sid, m]) => [
-          sid,
-          students.get(sid)?.name,
+          studentName(sid),
           ...months.map((k) => m.get(k)?.join("\n\n") || ""),
         ]),
-        2,
       );
     }
     table(
       "记录明细",
       [
         "记录编号",
-        "学生编号",
+        "学生姓名",
         "类别",
         "正文",
         "业务日期",
@@ -354,7 +369,7 @@ function workbook(data: ExportData) {
       ],
       data.entries.map((e) => [
         e.id,
-        e.studentId,
+        studentName(e.studentId),
         entryKinds[e.kind],
         e.body,
         e.date,
@@ -372,7 +387,7 @@ function workbook(data: ExportData) {
         "顺序",
         "实体",
         "编号",
-        "学生编号",
+        "学生姓名",
         "服务编号",
         "版本",
         "动作",
@@ -384,15 +399,15 @@ function workbook(data: ExportData) {
       data.revisions.map((r) => [
         r.seq,
         r.entity,
-        r.entityId,
-        r.studentId,
+        r.entity === "students" ? "" : r.entityId,
+        studentName(r.studentId),
         r.serviceId,
         r.version,
         r.action,
         r.actor,
         timeLabel(r.at),
-        r.before,
-        r.after,
+        reportSnapshot(r.before),
+        reportSnapshot(r.after),
       ]),
     );
     table(
@@ -422,7 +437,7 @@ function workbook(data: ExportData) {
         "状态",
         "问题",
         "建议",
-        "学生编号",
+        "关联学生姓名",
         "服务编号",
         "确认人",
         "确认时间",
@@ -437,11 +452,11 @@ function workbook(data: ExportData) {
         r.state,
         r.issues,
         r.proposal,
-        r.student_id,
+        studentName(r.student_id),
         r.service_id,
         r.reviewer,
         r.reviewed_at,
-        r.resolution,
+        reportSnapshot(r.resolution),
       ]),
     );
     table(

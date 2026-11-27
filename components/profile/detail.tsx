@@ -235,7 +235,7 @@ function History({ type, id, action }: { type: "students" | "services"; id: stri
                 <ChevronDown size={16} />
               </summary>
               <div className="history-content">
-                <small>{r.entityId}</small>
+                {r.entity !== "students" && <small>{r.entityId}</small>}
                 {keys.map((k) => (
                   <div className="history-diff" key={k}>
                     <b>{labels[k]}</b>
@@ -383,31 +383,26 @@ function ServiceActions({ s }: { s: Service }) {
 function ServicePanels({ s }: { s: Service }) {
   const { w, open } = useSite();
   const cat = (id: string, fallback?: string) => labelOf(w.catalogs, id, fallback);
-  const projects = s.projects.map((id) => cat(id));
   const closure = currentClosure(s);
   return (
-    <div className="detail-grid">
-      <Section title="合同与目标" action={
-        <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
-          <Pencil size={15} /> 编辑服务
-        </button>
+    <div className="detail-grid service-panels">
+      <Section title="合同目标与工作进度" action={
+        <div className="actions">
+          <button className="btn" onClick={() => open("编辑服务资料", <ServiceEditor old={s} />, true)}>
+            <Pencil size={15} /> 编辑服务
+          </button>
+          <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
+            <Pencil size={15} /> 编辑工作进度
+          </button>
+        </div>
       }>
         <Facts
           values={[
             ["甲方渠道", cat(s.channel)],
-            ["合同项目", <ProjectNames key="projects" names={projects} />],
             ["专业方向", s.major],
-            ["教务老师", cat(s.teacher, "教务待分配")],
             ["原合同入学目标", s.original.join("、")],
-            ["当前入学目标", s.targets.join("、")],
           ]}
         />
-      </Section>
-      <Section title="工作进度" action={
-        <button className="btn" onClick={() => open("编辑工作进度", <ServiceEditor old={s} field="work" />)}>
-          <Pencil size={15} /> 编辑工作进度
-        </button>
-      }>
         <Facts
           values={[
             [s.phase === "completed" ? "结束前状况" : "学生状况", s.status],
@@ -500,7 +495,7 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
     <>
       <PageHead
         title={st.name}
-        subtitle={"永久档案 · " + st.id}
+        subtitle="永久档案"
         actions={
           <>
             <button
@@ -539,28 +534,32 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
         </details>
       </section>
       <section className="detail-summary" aria-label="当前服务">
-        {choices.length > 1 || (choices.length > 0 && !selected) ? (
-          <label className="service-choice">
-            <span>当前服务（共 {choices.length} 份）</span>
-            <select aria-label="切换服务" value={s?.id || ""}
-              onChange={(e) => go(studentPath(id, e.target.value))}>
-              {!selected && <option value="" disabled>请选择该生的服务</option>}
-              {choices.map((choice) => (
-                <option key={choice.service.id} value={choice.service.id}>
-                  {choice.label}{choices.some((other) => other !== choice && other.label === choice.label)
-                    ? " · " + choice.service.id : ""}
-                </option>
-              ))}
-            </select>
-          </label>
-        ) : selected && s ? (
-          <div>
-            <span className="subtle">当前服务</span>
-            <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>
-            <b><ProjectNames names={selected.projects} fallback="合同项目待补" /></b>
-            {s.targets.length > 0 && <span>{s.targets.join("、")}</span>}
-          </div>
-        ) : <span className="subtle">暂无服务</span>}
+        <div className="current-service-heading">
+          <h2>当前服务</h2>
+          {s && <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>}
+          {(choices.length > 1 || (choices.length > 0 && !selected)) && (
+            <label className="btn service-switch">
+              <span aria-hidden="true">{s ? "切换服务" : "请选择服务"}（{choices.length} 份）</span>
+              <ChevronDown size={14} aria-hidden="true" />
+              <select aria-label="切换服务" value={selectedId || ""}
+                onChange={(e) => go(studentPath(id, e.target.value))}>
+                {!s && <option value="" disabled>请选择该生的服务</option>}
+                {choices.map((choice) => (
+                  <option key={choice.service.id} value={choice.service.id}>
+                    {choice.label}{choices.some((other) => other !== choice && other.label === choice.label)
+                      ? " · " + choice.service.id : ""}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+        </div>
+        {selected && s && <Facts values={[
+          ["合同项目", <ProjectNames names={selected.projects} fallback="合同项目待补" />],
+          ["当前入学目标", s.targets.join("、") || "目标待补"],
+          ["教务老师", labelOf(w.catalogs, s.teacher, "教务待分配")],
+        ]} />}
+        {!choices.length && <span className="subtle">暂无服务</span>}
         {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
         {s && <ServiceActions s={s} />}
       </section>

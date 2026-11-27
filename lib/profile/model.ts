@@ -340,7 +340,6 @@ export const labels: Record<string, string> = {
   source: "来源",
   precision: "日期精度",
   recorded: "登记时间",
-  studentId: "学生编号",
   serviceId: "服务编号",
 };
 export const orderedApps = (list: Application[]) =>
