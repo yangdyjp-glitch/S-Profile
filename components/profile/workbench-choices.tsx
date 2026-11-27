@@ -1,7 +1,8 @@
 "use client";
 import { useState } from "react";
+import { flushSync } from "react-dom";
 import { catalogOptionLabel, choices, requiresActiveStatus, type Catalog, type Service, type Student } from "../../lib/profile/model";
-import { ApiError, useSite } from "./ui";
+import { ApiError, type useSite } from "./ui";
 
 const fields = [
   { key: "teacher", label: "教务", placeholder: "待分配" },
@@ -11,15 +12,21 @@ const fields = [
 ] as const;
 type Choice = (typeof fields)[number];
 
-export function WorkbenchChoices({ service, student, staff, draftProgress, setDraftProgress }: {
+export function WorkbenchChoices({ service, student, staff, actions, draftProgress, setDraftProgress }: {
   service: Service;
   student: Student;
   staff: Catalog[];
+  actions: Pick<ReturnType<typeof useSite>, "write" | "refresh" | "notice">;
   draftProgress?: string;
   setDraftProgress: (value: string | null) => void;
 }) {
-  const { write, refresh, notice } = useSite();
+  const { write, refresh, notice } = actions;
   const [saving, setSaving] = useState<{ field: Choice["key"]; value: string } | null>(null);
+  const [opened, setOpened] = useState<Partial<Record<Choice["key"], boolean>>>({});
+  function populate(field: Choice["key"]) {
+    // Native pickers read the options during the first pointer or keyboard interaction.
+    if (!opened[field]) flushSync(() => setOpened((old) => ({ ...old, [field]: true })));
+  }
   const current = (field: Choice["key"]) => field === "manager" ? student.manager : service[field];
 
   async function change({ key: field, label }: Choice, value: string) {
@@ -54,11 +61,11 @@ export function WorkbenchChoices({ service, student, staff, draftProgress, setDr
     const draft = field === "progress" ? draftProgress : undefined;
     const value = saving?.field === field ? saving.value : draft ?? stored;
     const personnel = field === "teacher" || field === "manager";
-    const options = personnel
+    const person = personnel && value ? staff.find((c) => c.kind === field && c.id === value) : undefined;
+    const display = person ? catalogOptionLabel(person) : (personnel ? placeholder : value || placeholder);
+    const options = !opened[field] ? [] : personnel
       ? staff.filter((c) => c.kind === field && (c.active || c.id === stored)).map((c) => [c.id, catalogOptionLabel(c)])
       : choices[field].map((item) => [item, item]);
-    const selected = options.find(([id]) => id === value);
-    const display = selected?.[1] ?? (personnel ? placeholder : value || placeholder);
     return (
       <td key={field}>
         <select
@@ -69,10 +76,12 @@ export function WorkbenchChoices({ service, student, staff, draftProgress, setDr
           title={display}
           value={value}
           disabled={!!saving}
+          onFocus={() => populate(field)}
+          onPointerDown={() => populate(field)}
           onChange={(e) => void change(choice, e.currentTarget.value)}
         >
-          <option value="" disabled={!personnel && !service.missing?.includes(field)}>{placeholder}</option>
-          {value && !selected && <option value={value} disabled>{display}</option>}
+          {(!value || opened[field]) && <option value="" disabled={!personnel && !service.missing?.includes(field)}>{placeholder}</option>}
+          {value && !options.some(([id]) => id === value) && <option value={value} disabled={!!opened[field]}>{display}</option>}
           {options.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
         </select>
       </td>

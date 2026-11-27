@@ -1,5 +1,5 @@
 "use client";
-import { useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { memo, startTransition, useCallback, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
   CheckCheck,
@@ -32,6 +32,7 @@ import {
   type Student,
 } from "../../lib/profile/model";
 import {
+  compareStudentNames,
   defaultFilters,
   serviceRows,
   type Filters,
@@ -40,6 +41,7 @@ import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
 import { WorkbenchChoices } from "./workbench-choices";
+type ListActions = Pick<ReturnType<typeof useSite>, "open" | "go" | "write" | "refresh" | "notice">;
 type ListField = ServiceListField | "name" | "entry";
 const fieldNames: Record<ListField, string> = {
   name: "姓名", major: "专业", projects: "合同项目", status: "学生状况", targets: "入学目标",
@@ -245,12 +247,12 @@ export function SearchBox({
     </div>
   );
 }
-function AdmittedSchools({ service, admissions, nameOf }: {
+function AdmittedSchools({ service, admissions, nameOf, open }: {
   service: Service;
   admissions?: Application[];
   nameOf: (id: string, blank: string) => string;
+  open: ListActions["open"];
 }) {
-  const { open } = useSite();
   if (!admissions?.length) return (
     <button className="cell-edit" aria-haspopup="dialog" aria-label="补录合格学校"
       onClick={() => open("登记学校申请", <SchoolEditor s={service} />, true)}>
@@ -277,15 +279,16 @@ function AdmittedSchools({ service, admissions, nameOf }: {
     </ul>
   );
 }
-function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf }: {
+const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf, actions }: {
   service: Service;
   student: Student;
   log?: Entry;
   admissions?: Application[];
   staff: Catalog[];
   nameOf: (id: string, blank?: string) => string;
+  actions: ListActions;
 }) {
-  const { open, go } = useSite();
+  const { open, go } = actions;
   const row = useRef<HTMLTableRowElement>(null);
   const [progressChange, setProgressChange] = useState<{ service: Service; value: string } | null>(null);
   const completed = s.phase === "completed";
@@ -354,12 +357,12 @@ function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf }:
         <td>
           {fieldButton("projects", projects.join("、") || "待补", "project-list", <ProjectNames names={projects} />)}
         </td>
-        <WorkbenchChoices service={s} student={st} staff={staff} draftProgress={progressChange?.value}
+        <WorkbenchChoices service={s} student={st} staff={staff} actions={actions} draftProgress={progressChange?.value}
           setDraftProgress={(value) => setProgressChange(value ? { service: s, value } : null)} />
         {completed && (
           <td>
             {closure?.kind === "admission" ? (
-              <AdmittedSchools service={s} admissions={admissions} nameOf={nameOf} />
+              <AdmittedSchools service={s} admissions={admissions} nameOf={nameOf} open={open} />
             ) : closure ? (
               <button className="cell-edit" aria-haspopup="dialog" title="更正结案情况"
                 onClick={(e) => open("撤回误结案 · " + st.name, <ActionEditor s={s} action="reopen" />, false, e.currentTarget)}>
@@ -391,7 +394,28 @@ function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf }:
       )}
     </>
   );
+});
+
+const serviceRowChunk = 16;
+function ServiceTableBody({ rows, restoringScroll, renderRow }: {
+  rows: Service[];
+  restoringScroll: boolean;
+  renderRow: (service: Service) => React.ReactNode;
+}) {
+  // Render the first screen first. On return from a detail page the full scroll range
+  // must exist before the parent's layout effect restores the previous position.
+  const [limit, setLimit] = useState(() => restoringScroll ? rows.length : serviceRowChunk);
+  const pending = limit < rows.length;
+  useEffect(() => {
+    if (!pending) return;
+    const frame = requestAnimationFrame(() => {
+      startTransition(() => setLimit((count) => count + serviceRowChunk));
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [limit, pending]);
+  return <tbody aria-busy={pending}>{rows.slice(0, limit).map(renderRow)}</tbody>;
 }
+
 export function Workbench({
   filters: f,
   setFilters,
@@ -401,8 +425,9 @@ export function Workbench({
   setFilters: (v: Filters) => void;
   scrollPositionRef: RefObject<{ top: number; left: number }>;
 }) {
-  const { w, open } = useSite(),
+  const { w, open, go, write, refresh, notice } = useSite(),
     [more, setMore] = useState(false);
+  const actions = useMemo(() => ({ open, go, write, refresh, notice }), [open, go, write, refresh, notice]);
   const viewport = useRef<HTMLDivElement>(null);
   const changeFilters = (next: Filters) => {
     scrollPositionRef.current = { top: 0, left: 0 };
@@ -410,7 +435,9 @@ export function Workbench({
   };
   const set = (k: keyof Filters, v: string) => changeFilters({ ...f, [k]: v });
   const completed = f.phase === "completed";
-  const rows = useMemo(() => serviceRows(w, f), [w, f]);
+  const deferred = useDeferredValue(f);
+  const listFilters = deferred.phase === f.phase ? deferred : f;
+  const rows = useMemo(() => serviceRows(w, listFilters), [w, listFilters]);
   const hasRows = rows.length > 0;
   useLayoutEffect(() => {
     viewport.current?.scrollTo(scrollPositionRef.current);
@@ -442,7 +469,7 @@ export function Workbench({
     for (const service of w.services) result[service.phase]++;
     return result;
   }, [w.services]);
-  const cat = (v: string, blank = "待补") => names.get(v) || blank,
+  const cat = useCallback((v: string, blank = "待补") => names.get(v) || blank, [names]),
     nFilters = Object.entries(f).filter(
       ([k, v]) => !["phase", "q", "sort"].includes(k) && v,
     ).length;
@@ -600,13 +627,12 @@ export function Workbench({
                   <th scope="col" className="updated-col" aria-label="最近更新" title="最近更新（月/日）">更新</th>
                 </tr>
               </thead>
-              <tbody>
-                {rows.map((s) => (
+              <ServiceTableBody key={f.phase} rows={rows} restoringScroll={scrollPositionRef.current.top > 0}
+                renderRow={(s) => (
                   <ServiceRow key={s.id} service={s} student={students.get(s.studentId)!}
                     log={latest.get(s.studentId + (s.phase === "applying" ? "|application" : "|progress"))}
-                    admissions={admissions.get(s.id)} staff={staff} nameOf={cat} />
-                ))}
-              </tbody>
+                    admissions={admissions.get(s.id)} staff={staff} nameOf={cat} actions={actions} />
+                )} />
             </table>
           </div>
         ) : (
@@ -655,8 +681,9 @@ export function Students({ q, search, page, setPage }: {
   setPage: (page: number) => void;
 }) {
   const { w, go, open } = useSite();
+  const query = useDeferredValue(q);
   const rows = useMemo(() => {
-    const term = q.trim().toLowerCase();
+    const term = query.trim().toLowerCase();
     const matches = new Set<string>();
     if (term) {
       for (const entry of w.entries) {
@@ -666,8 +693,8 @@ export function Students({ q, search, page, setPage }: {
     const nameMatches = (name: string) => name.toLowerCase().includes(term);
     return w.students.filter((s) => nameMatches(s.name) || matches.has(s.id))
       .sort((a, b) => Number(nameMatches(b.name)) - Number(nameMatches(a.name)) ||
-        a.name.localeCompare(b.name, "zh-CN") || a.id.localeCompare(b.id));
-  }, [w.students, w.entries, q]),
+        compareStudentNames(a.name, b.name) || a.id.localeCompare(b.id));
+  }, [w.students, w.entries, query]),
     current = Math.min(page, Math.max(1, Math.ceil(rows.length / 24)));
   const serviceCounts = useMemo(() => {
     const result = new Map<string, number>();

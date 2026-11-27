@@ -34,16 +34,16 @@ export const defaultFilters: Filters = {
   closure: "",
   sort: "updated",
 };
+export const compareStudentNames = new Intl.Collator("zh-CN").compare;
 export function serviceRows(w: Workspace, f: Filters): Service[] {
   const students = new Map(w.students.map((s) => [s.id, s])),
     term = f.q.toLowerCase().trim();
-  const matching = term
-    ? new Set(
-        w.entries
-          .filter((e) => !e.voided && e.body.toLowerCase().includes(term))
-          .map((e) => e.studentId),
-      )
-    : null;
+  const matching = new Set<string>();
+  if (term) {
+    for (const entry of w.entries) {
+      if (!entry.voided && entry.body.toLowerCase().includes(term)) matching.add(entry.studentId);
+    }
+  }
   return w.services
     .filter((s) => {
       const st = students.get(s.studentId);
@@ -51,7 +51,7 @@ export function serviceRows(w: Workspace, f: Filters): Service[] {
       if (
         term &&
         !st.name.toLowerCase().includes(term) &&
-        !matching?.has(st.id)
+        !matching.has(st.id)
       )
         return false;
       return (
@@ -69,9 +69,7 @@ export function serviceRows(w: Workspace, f: Filters): Service[] {
     })
     .sort((a, b) =>
       f.sort === "name"
-        ? students
-            .get(a.studentId)!
-            .name.localeCompare(students.get(b.studentId)!.name, "zh-CN")
+        ? compareStudentNames(students.get(a.studentId)!.name, students.get(b.studentId)!.name)
         : f.sort === "target"
           ? (a.targets[0] || "9999").localeCompare(b.targets[0] || "9999")
           : b.updatedAt.localeCompare(a.updatedAt),

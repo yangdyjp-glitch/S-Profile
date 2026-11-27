@@ -1,5 +1,5 @@
 "use client";
-import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ChevronUp,
   ContactRound,
@@ -221,11 +221,19 @@ export default function Site() {
     const timer = setTimeout(() => notice(""), 3500);
     return () => clearTimeout(timer);
   }, [toast]);
-  function go(path: string) {
+  const go = useCallback((path: string) => {
     location.hash = path;
     if (menu) dismissMenu();
     setProfile(false);
-  }
+  }, [menu, dismissMenu]);
+  const open = useCallback((title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
+    setView({ title, node, wide, anchor });
+    setProfile(false);
+    setMenu(false);
+  }, []);
+  const close = useCallback(() => setView(null), []);
+  const site = useMemo(() => user && ({ w, user, refresh, write, open, close, notice, go }),
+    [w, user, refresh, write, open, close, go]);
   async function logout() {
     try {
       await request("auth/sign-out", "POST", {});
@@ -237,22 +245,15 @@ export default function Site() {
     }
   }
   if (checking && !user) return <Empty title="正在打开工作台" />;
-  if (!user)
+  if (!user || !site)
     return <Login canSetup={canSetup} refresh={access} accessError={error} />;
   const [page, id, child, selectedServiceId] = route.split("/"),
     adminImports = route === adminImportsRoute && user.role === "admin",
     studentDetail = page === "student" || page === "service",
     legacyService = page === "service" ? w.services.find((s) => s.id === id) : undefined,
     active = studentDetail ? detailList : page;
-  const open = (title: string, node: React.ReactNode, wide = false, anchor?: HTMLButtonElement) => {
-    setView({ title, node, wide, anchor });
-    setProfile(false);
-    setMenu(false);
-  };
   return (
-    <SiteContext.Provider
-      value={{ w, user, refresh, write, open, close: () => setView(null), notice, go }}
-    >
+    <SiteContext.Provider value={site}>
       <div className="shell">
         {menu && (
           <button

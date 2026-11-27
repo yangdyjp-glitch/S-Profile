@@ -39,15 +39,13 @@ import {
   validateService,
   validateStudent,
 } from "./validation";
-import { all, bump, catalogItem, expect, meta, one, record, type Input } from "./store";
+import { all, bump, catalogItem, expect, meta, one, record, serviceEditContext, type Input } from "./store";
 export interface Plan {
   sql: D1PreparedStatement[];
   result: { id: string; studentId?: string; serviceId?: string };
 }
 const object = (v: unknown): Input =>
   v && typeof v === "object" && !Array.isArray(v) ? (v as Input) : {};
-const serviceApps = (db: D1Database, sid: string) =>
-  all<Application>(db, "applications", "WHERE service_id=?", [sid]);
 function application(
   input: Input,
   serviceId: string,
@@ -303,11 +301,8 @@ export async function business(
         ? await one<Application>(db, "applications", key)
         : undefined;
     const serviceId = oldApp?.serviceId || key;
-    const [old, apps, list] = await Promise.all([
-      one<Service>(db, "services", serviceId),
-      serviceApps(db, serviceId),
-      all<Catalog>(db, "catalogs", oldApp || child === "applications" ? "" : "WHERE kind<>'school'"),
-    ]);
+    const { service: old, apps, catalogs: list } =
+      await serviceEditContext(db, serviceId, !!oldApp || child === "applications");
     expect(old, oldApp ? input.serviceVersion : input.expectedVersion);
     const s = bump(old);
     let action = "";
@@ -396,7 +391,7 @@ export async function business(
       if (old.voided) fail("voided", "记录已作废");
     }
     const sid = old?.studentId || key;
-    await one<Student>(db, "students", sid);
+    if (!old) await one<Student>(db, "students", sid);
     const e: Entry = old
       ? bump(old)
       : {

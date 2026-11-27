@@ -3,10 +3,17 @@ import pg from "pg";
 import { initializePostgres } from "./postgres-migrations.mjs";
 
 // Only trusted query templates are translated. Values are sent separately to pg.
-function placeholders(sql) {
+function postgresSql(sql) {
   let n = 0;
-  return sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|\?/g,
-    (token) => token === "?" ? "$" + ++n : token);
+  return sql.replace(/'(?:[^']|'')*'|"(?:[^"]|"")*"|\?|\bjson_(?:group_)?array(?=\s*\()/gi, (token) => {
+    if (token === "?") return "$" + ++n;
+    // Drizzle's SQLite relational queries encode joined rows as JSON arrays.
+    switch (token.toLowerCase()) {
+      case "json_array": return "json_build_array";
+      case "json_group_array": return "json_agg";
+      default: return token;
+    }
+  });
 }
 
 function poolFor(connectionString) {
@@ -88,7 +95,7 @@ export async function openPostgres(connectionString, directory) {
   return {
     backend: "postgresql",
     DB: {
-      prepare(sql) { return new Statement(pool, placeholders(sql)); },
+      prepare(sql) { return new Statement(pool, postgresSql(sql)); },
       async batch(statements) {
         const readOnly = statements.every((stmt) => /^\s*SELECT\b/i.test(stmt.text));
         const client = await pool.connect();

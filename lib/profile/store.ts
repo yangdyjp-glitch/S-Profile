@@ -60,6 +60,25 @@ export async function catalogItem(db: D1Database, kind: string, id: string) {
     throw new Problem(404, "名册项不存在或已删除");
   return item;
 }
+const selectEntities = (table: Table, where = "") =>
+  `SELECT '${table}' AS entity,id,data,version,updated_at FROM ${table} ${where}`;
+export async function serviceEditContext(db: D1Database, id: string, includeSchools: boolean) {
+  const sql = [
+    selectEntities("services", "WHERE id=?"),
+    selectEntities("applications", "WHERE service_id=?"),
+    selectEntities("catalogs", includeSchools ? "" : "WHERE kind<>'school'"),
+  ].join(" UNION ALL ");
+  const { results } = await db.prepare(sql).bind(id, id).all<SqlRow & { entity: Table }>();
+  let service: Service | undefined;
+  const apps: Application[] = [], catalogs: Catalog[] = [];
+  for (const row of results) {
+    if (row.entity === "services") service = unpack<Service>(row, row.entity);
+    else if (row.entity === "applications") apps.push(unpack<Application>(row, row.entity));
+    else catalogs.push(unpack<Catalog>(row, row.entity));
+  }
+  if (!service) throw new Problem(404, "这条记录不存在");
+  return { service, apps, catalogs };
+}
 export const tables: Table[] = [
   "students",
   "services",
@@ -78,9 +97,27 @@ export function unpackWorkspace(results: D1Result[]): Workspace {
   ) as unknown as Workspace;
 }
 export async function snapshot(db: D1Database) {
-  return unpackWorkspace(await db.batch(workspaceQueries(db)));
+  return (await fullWorkspace(db)).data;
 }
 const revisionHead = "SELECT COALESCE(MAX(seq),0) AS cursor FROM revisions";
+// One statement gives the revision head and the entity rows the same database snapshot.
+// D1 accepts at most five terms in one compound SELECT.
+const snapshotSql = `SELECT NULL AS entity,NULL AS id,NULL AS data,NULL AS version,NULL AS updated_at,
+  COALESCE(MAX(seq),0) AS cursor FROM revisions
+  UNION ALL SELECT entity,id,data,version,updated_at,NULL
+  FROM (${tables.map((table) => selectEntities(table)).join(" UNION ALL ")}) AS workspace_rows`;
+async function fullWorkspace(db: D1Database): Promise<WorkspaceUpdate> {
+  const { results } = await db.prepare(snapshotSql).all<
+    (SqlRow & { entity: Table }) | { entity: null; cursor: number }
+  >();
+  const data: Workspace = { students: [], services: [], applications: [], entries: [], catalogs: [] };
+  let cursor = 0;
+  for (const row of results) {
+    if (row.entity === null) cursor = Number(row.cursor);
+    else data[row.entity].push(unpack(row, row.entity));
+  }
+  return { full: true, cursor, data };
+}
 const deltaLimit = 250;
 type ChangeRow = { cursor: number; seq: number | null; entity: Table; entity_id: string; after: string };
 function changesAfter(db: D1Database, since: number) {
@@ -105,10 +142,7 @@ export async function workspaceUpdate(
       return { cursor, full: false, data };
     }
   }
-  // The cursor and the five tables must describe exactly the same committed snapshot.
-  const result = await db.batch<Record<string, unknown>>([...workspaceQueries(db), db.prepare(revisionHead)]);
-  const cursor = Number(result[tables.length].results[0].cursor);
-  return { cursor, full: true, data: unpackWorkspace(result) };
+  return fullWorkspace(db);
 }
 export function expect(row: Row, v: unknown) {
   if (row.version !== v)

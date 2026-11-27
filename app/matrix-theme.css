@@ -1,5 +1,14 @@
 @import "@fontsource-variable/noto-serif-sc";
 
+/* Shared interface glyphs from Noto Serif SC 2.003, licensed under /fonts/OFL.txt.
+   The full family covers names and free-form notes outside this subset. */
+@font-face {
+  font-family: "S-Profile UI";
+  src: url("./fonts/s-profile-ui.woff2") format("woff2");
+  font-weight: 200 900;
+  font-style: normal;
+  font-display: swap;
+}
 /* 字体和控件规格沿用矩阵 CRM，品牌色沿用 S-Profile。 */
 @font-face {
   font-family: "NumTNR";
@@ -14,7 +23,7 @@
   unicode-range: U+0030-0039, U+002B-002E, U+0025, U+0024, U+00A5, U+FFE5, U+FF04, U+003A;
 }
 :root {
-  --app-font: "NumTNR", "Noto Serif SC Variable", "Noto Serif SC", Georgia, "Songti SC", SimSun, serif;
+  --app-font: "NumTNR", "Noto Serif SC", "S-Profile UI", "Noto Serif SC Variable", Georgia, "Songti SC", SimSun, serif;
   --ink: #183752;
   --muted: #4c647c;
   --line: #c8dbeb;

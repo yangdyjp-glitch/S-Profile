@@ -1,5 +1,5 @@
 "use client";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   ChevronDown,
   FileClock,
@@ -64,6 +64,7 @@ function Tabs({
     </nav>
   );
 }
+const timelinePageSize = 12;
 function Timeline({
   st,
   kind,
@@ -74,7 +75,9 @@ function Timeline({
   nested?: boolean;
 }) {
   const { w, open } = useSite(),
-    [filter, setFilter] = useState("");
+    [filter, setFilter] = useState(""),
+    [limit, setLimit] = useState(timelinePageSize);
+  const moreButton = useRef<HTMLButtonElement>(null);
   const title = kind === "progress" ? "学生跟进" : "出愿跟进";
   const addLabel = kind === "progress" ? "新增跟进" : "新增出愿跟进";
   const entries = useMemo(() => newestEntries(
@@ -83,9 +86,18 @@ function Timeline({
   const months = useMemo(() =>
     [...new Set(entries.map((e) => e.date.slice(0, 7) || "unknown"))].sort().reverse(),
   [entries]);
-  const shown = entries.filter(
-    (e) => !filter || (e.date.slice(0, 7) || "unknown") === filter,
-  );
+  const shown = useMemo(() => filter
+    ? entries.filter((e) => (e.date.slice(0, 7) || "unknown") === filter)
+    : entries, [entries, filter]);
+  useEffect(() => {
+    const button = moreButton.current;
+    if (!button || typeof IntersectionObserver === "undefined") return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry.isIntersecting) setLimit((n) => n + timelinePageSize);
+    }, { root: button.parentElement, rootMargin: "80px" });
+    observer.observe(button);
+    return () => observer.disconnect();
+  }, [limit, shown]);
   return (
     <Section
       title={title}
@@ -95,7 +107,7 @@ function Timeline({
           className="compact"
           aria-label={"按" + title + "年月筛选"}
           value={filter}
-          onChange={(e) => setFilter(e.target.value)}
+          onChange={(e) => { setFilter(e.target.value); setLimit(timelinePageSize); }}
         >
           <option value="">全部年月</option>
           {months.map((m) => (
@@ -122,7 +134,7 @@ function Timeline({
       </div>
       {shown.length ? (
         <div className="timeline">
-          {shown.map((e) => (
+          {shown.slice(0, limit).map((e) => (
             <article key={e.id}>
               <div className="timeline-meta">
                 <strong>{e.date || e.rawDate || "日期待确认"}</strong>
@@ -160,6 +172,11 @@ function Timeline({
               </div>
             </article>
           ))}
+          {shown.length > limit && (
+            <button className="btn" ref={moreButton} onClick={() => setLimit((n) => n + timelinePageSize)}>
+              载入更早的{title}
+            </button>
+          )}
         </div>
       ) : (
         <Empty title="暂无此类记录" />
@@ -567,11 +584,11 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
       {tab === "overview" ? (
         <div className="overview-records stack">
           {s && <ServicePanels s={s} />}
-          <Timeline st={st} kind="progress" />
+          <Timeline key={st.id} st={st} kind="progress" />
           <Section title="申请与出愿">
             <div className={s ? "detail-grid application-grid" : undefined}>
               {s && <Applications s={s} />}
-              <Timeline st={st} kind="application" nested />
+              <Timeline key={st.id} st={st} kind="application" nested />
             </div>
           </Section>
           {s && (

@@ -41,6 +41,7 @@ function createAuth(env: Cloudflare.Env, origin: string) {
     },
     session: { cookieCache: { enabled: false } },
     advanced: {
+      database: { joins: true },
       useSecureCookies: origin.startsWith("https://"),
       ipAddress: { ipAddressHeaders: ["cf-connecting-ip"] },
     },
