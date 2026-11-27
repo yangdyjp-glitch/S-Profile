@@ -404,8 +404,12 @@ async function run() {
       raw: true,
       headers: { "x-file-name": encodeURIComponent("合成验收.xlsx") },
     };
+  await call("imports", "GET", undefined, { status: 403 });
+  await call("imports", "POST", bytes, { ...uploadOpts, status: 403 });
+  cookie = adminCookie;
   const batch = await call("imports", "POST", bytes, uploadOpts);
   assert.deepEqual(await call("imports", "POST", bytes, uploadOpts), batch);
+  assert.ok((await call("imports")).some((b) => b.id === batch.id));
   await call("imports/" + batch.id + "/prepare", "POST", {});
   await call("imports/" + batch.id + "/advance", "POST", {});
   const pending = await call("imports/" + batch.id + "/review"),
@@ -431,6 +435,13 @@ async function run() {
   const revisit = await call("imports/" + batch.id + "/review/" + raw.id);
   assert.equal(revisit.state, "linked");
 
+  cookie = memberCookie;
+  for (const action of ["review", "review/" + raw.id, "original"]) {
+    await call("imports/" + batch.id + "/" + action, "GET", undefined, { status: 403 });
+  }
+  for (const action of ["prepare", "advance", "resolve"]) {
+    await call("imports/" + batch.id + "/" + action, "POST", {}, { status: 403 });
+  }
   const catalogSnapshot = (await call("workspace")).catalogs;
   const deletedItems = [
     service.channel, before.teacher, student.manager, service.projects[0], S.id,
@@ -468,7 +479,7 @@ async function run() {
     mode: "existing",
     studentId: confirm.studentId,
     proposal: { schools: [{ name: "合大", project: liveProject.name, submitted: true }] },
-  });
+  }, { cookie: adminCookie });
   assert.equal((await call("services/" + imported.serviceId + "/applications"))[0].school, replacement.id);
   const later = await call("workspace?since=" + replay.workspace.cursor);
   const merged = mergeWorkspace(mergeWorkspace(initial.data, replay.workspace), later);
@@ -499,7 +510,7 @@ async function run() {
     "imports/" + batch.id + "/original",
     "GET",
     undefined,
-    { binary: true },
+    { binary: true, cookie: adminCookie },
   );
   assert.deepEqual(
     Buffer.from(await original.arrayBuffer()),
@@ -575,6 +586,7 @@ async function run() {
   deletedNameBook.addWorksheet("进行中").addRows([
     ["学生姓名", "甲方"], ["验收旧渠道", oldChannel.name],
   ]);
+  cookie = adminCookie;
   const checkBatch = await call("imports", "POST", await deletedNameBook.xlsx.writeBuffer(), uploadOpts);
   const checkPath = "imports/" + checkBatch.id;
   await call(checkPath + "/prepare", "POST", {});
@@ -582,7 +594,6 @@ async function run() {
   const unresolved = await call(checkPath + "/review");
   assert.ok(unresolved.rows[0].issues.some((issue) => issue.includes(oldChannel.name) && issue.includes("删除")));
   assert.ok(!(await call("catalogs/channel")).some((c) => c.name === oldChannel.name));
-  cookie = adminCookie;
   const resetPassword = "r" + tooShort;
   await call("admin/users/" + staff.id, "PATCH", { action: "reset", password: tooShort }, { status: 422 });
   await call("admin/users/" + staff.id, "PATCH", {

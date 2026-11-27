@@ -480,7 +480,7 @@ function ResolveForm({ row, done }: { row: Source; done: () => void }) {
     </FormShell>
   );
 }
-export function ImportPage() {
+export default function ImportPage() {
   const { open, refresh, notice } = useSite(),
     [list, setList] = useState<Batch[]>([]),
     [chosen, setChosen] = useState(""),

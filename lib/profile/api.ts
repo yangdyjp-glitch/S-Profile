@@ -151,6 +151,7 @@ export async function api(
     if (section === "exports" && method === "POST")
       return json(await exportData(db, env.BUCKET!, await body()));
     if (section === "imports") {
+      if (actor.role !== "admin") throw new Problem(403, "导入核对仅向管理员开放");
       if (!env.BUCKET) throw new Problem(503, "文件存储暂不可用");
       if (!key && method === "GET") return json(await batches(db));
       if (!key && method === "POST")

@@ -571,7 +571,7 @@ export function Workbench({
             {f.q || nFilters
               ? "调整搜索词或筛选条件后再试。"
               : f.phase === "progress"
-                ? "建立学生档案与首份服务，或从已有 Excel 工作簿导入。"
+                ? "新建服务时可选择已有学生，也可以同时建立学生档案。"
                 : "进入此阶段的服务会显示在这里。"}
           </Empty>
         )}

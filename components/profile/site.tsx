@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
 import {
   CalendarDays,
   ChevronRight,
@@ -25,7 +25,6 @@ import { mergeWorkspace, type WorkspaceUpdate } from "../../lib/profile/sync";
 import { Accounts, CatalogPage } from "./admin";
 import { ServiceDetail, StudentDetail } from "./detail";
 import { PasswordEditor } from "./editors";
-import { ImportPage } from "./import-page";
 import { Login } from "./login";
 import {
   Brand,
@@ -38,10 +37,11 @@ import {
   type WorkspaceWrite,
 } from "./ui";
 import { Students, Workbench } from "./workbench";
+const adminImportsRoute = "admin/imports";
+const ImportPage = lazy(() => import("./import-page"));
 const nav = [
   { key: "services", name: "服务工作台", en: "Services", icon: LayoutDashboard },
   { key: "students", name: "学生档案", en: "Students", icon: UsersRound },
-  { key: "imports", name: "导入核对", en: "Imports", icon: FolderInput },
   { key: "catalogs", name: "业务名册", en: "Catalogs", icon: ContactRound },
   { key: "accounts", name: "账号管理", en: "Accounts", icon: ShieldCheck },
 ];
@@ -171,6 +171,9 @@ export default function Site() {
   useEffect(() => {
     void access();
     const hash = () => {
+      if (location.hash === "#imports") {
+        window.history.replaceState(window.history.state, "", "#" + adminImportsRoute);
+      }
       setRoute(location.hash.slice(1) || "services");
       setMenu(false);
       setProfile(false);
@@ -217,6 +220,7 @@ export default function Site() {
   if (!user)
     return <Login canSetup={canSetup} refresh={access} accessError={error} />;
   const [page, id] = route.split("/"),
+    adminImports = route === adminImportsRoute && user.role === "admin",
     active =
       page === "service" ? "services" : page === "student" ? "students" : page,
     section = nav.find((n) => n.key === active);
@@ -288,6 +292,12 @@ export default function Site() {
             </button>
             {profile && (
               <div className="menu-pop">
+                {user.role === "admin" && (
+                  <button onClick={() => go(adminImportsRoute)}>
+                    <FolderInput size={15} />
+                    管理后台
+                  </button>
+                )}
                 <button onClick={() => open("修改自己的密码", <PasswordEditor />)}>
                   <KeyRound size={15} />
                   修改密码
@@ -315,10 +325,10 @@ export default function Site() {
               </button>
               {page !== "services" && (
                 <div className="breadcrumbs">
-                  <span>工作空间</span>
+                  <span>{adminImports ? "管理后台" : "工作空间"}</span>
                   <ChevronRight size={14} />
-                  <b>{section?.name || "工作台"}</b>
-                  {id && (
+                  <b>{adminImports ? "导入核对" : section?.name || "工作台"}</b>
+                  {(page === "student" || page === "service") && id && (
                     <>
                       <ChevronRight size={14} />
                       <span>详情</span>
@@ -344,8 +354,10 @@ export default function Site() {
               <StudentDetail key={id} id={id} />
             ) : page === "service" ? (
               <ServiceDetail key={id} id={id} />
-            ) : page === "imports" ? (
-              <ImportPage />
+            ) : adminImports ? (
+              <Suspense fallback={<Empty title="正在打开管理后台" />}>
+                <ImportPage />
+              </Suspense>
             ) : page === "catalogs" ? (
               <CatalogPage />
             ) : page === "accounts" ? (
