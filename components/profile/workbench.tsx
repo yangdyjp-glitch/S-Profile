@@ -43,7 +43,7 @@ import { studentColumns, studentListRows, studentNameOrder, type StudentSort } f
 import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type EntryDraft, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
-import { WorkbenchChoices } from "./workbench-choices";
+import { WorkbenchChoices, showsWorkbenchProgress, workbenchChoiceFields } from "./workbench-choices";
 type ListActions = Pick<ReturnType<typeof useSite>, "open" | "go" | "write" | "refresh" | "notice">;
 type ListField = ServiceListField | "name" | "entry";
 const fieldNames: Record<ListField, string> = {
@@ -128,6 +128,12 @@ export function PageNav({
     </div>
   );
 }
+function activeWorkbenchFilters(filters: Filters): Filters {
+  if (!showsWorkbenchProgress(filters.phase) && (filters.progress || filters.risk)) {
+    return { ...filters, progress: "", risk: "" };
+  }
+  return filters;
+}
 export function ExportDialog({ filters }: { filters: Filters }) {
   const { close, notice } = useSite(),
     [scope, setScope] = useState("filtered"),
@@ -138,7 +144,7 @@ export function ExportDialog({ filters }: { filters: Filters }) {
     setError("");
     let worker: Worker | undefined;
     try {
-      const data = await request("exports", "POST", { scope, filters });
+      const data = await request("exports", "POST", { scope, filters: activeWorkbenchFilters(filters) });
       worker = new Worker(new URL(exportWorkerUrl, document.baseURI), { type: "module" });
       const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
         worker!.onmessage = (e) =>
@@ -365,7 +371,7 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
             ) : closure ? (
               <button className="cell-edit" aria-haspopup="dialog" title="更正结案情况"
                 onClick={(e) => open("撤回误结案 · " + st.name, <ActionEditor s={s} action="reopen" />, false, e.currentTarget)}>
-                <span className="tag">{closureKinds[closure.kind]}</span>
+                <span className="tag" data-closure={closure.kind}>{closureKinds[closure.kind]}</span>
               </button>
             ) : (
               <span className="tag">待补</span>
@@ -380,9 +386,9 @@ const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admi
           ) : "待核"}
         </td>
       </tr>
-      {progressChange && (
+      {progressChange && showsWorkbenchProgress(s.phase) && (
         <tr className="progress-status-row">
-          <td colSpan={completed ? 11 : 10}>
+          <td colSpan={10}>
             <section className="progress-status-editor" aria-label={st.name + "的申请进度与学生状况"}>
               <strong>申请进度改为「{progressChange.value}」，请确认学生状况</strong>
               <ServiceEditor key={progressChange.value} old={progressChange.service}
@@ -434,8 +440,9 @@ export function Workbench({
   };
   const set = (k: keyof Filters, v: string) => changeFilters({ ...f, [k]: v });
   const completed = f.phase === "completed";
-  const deferred = useDeferredValue(f);
-  const listFilters = deferred.phase === f.phase ? deferred : f;
+  const activeFilters = useMemo(() => activeWorkbenchFilters(f), [f]);
+  const deferred = useDeferredValue(activeFilters);
+  const listFilters = deferred.phase === f.phase ? deferred : activeFilters;
   const rows = useMemo(() => serviceRows(w, listFilters), [w, listFilters]);
   const hasRows = rows.length > 0;
   useLayoutEffect(() => {
@@ -469,7 +476,7 @@ export function Workbench({
     return result;
   }, [w.services]);
   const cat = useCallback((v: string, blank = "待补") => names.get(v) || blank, [names]),
-    nFilters = Object.entries(f).filter(
+    nFilters = Object.entries(activeFilters).filter(
       ([k, v]) => !["phase", "q", "sort"].includes(k) && v,
     ).length;
   const filters: {
@@ -488,8 +495,10 @@ export function Workbench({
       ],
     })),
     { k: "status", title: "学生状况", items: [...choices.status, "暂停中"] },
-    { k: "risk", title: "潜在风险", items: choices.risk },
-    { k: "progress", title: "申请进度", items: choices.progress },
+    ...(showsWorkbenchProgress(f.phase) ? [
+      { k: "risk" as const, title: "潜在风险", items: choices.risk },
+      { k: "progress" as const, title: "申请进度", items: choices.progress },
+    ] : []),
     { k: "location", title: "所在地", items: choices.location },
     {
       k: "intake",
@@ -615,17 +624,16 @@ export function Workbench({
               scrollPositionRef.current = { top: scrollTop, left: scrollLeft };
             }}
           >
-            <table className={"data-table sticky services-table" + (completed ? " with-closures" : "")}>
+            <table className={"data-table sticky services-table" + (completed ? " with-closures" : "")} data-phase={f.phase}>
               <thead>
                 <tr>
                   <th scope="col" className="name-col">姓名</th>
                   <th scope="col" className="status-target-col">学生状况 / 目标时间</th>
                   <th scope="col" className="major-col">专业</th>
                   <th scope="col" className="contract-col">合同项目</th>
-                  <th scope="col" className="staff-col">教务</th>
-                  <th scope="col" className="staff-col">学管</th>
-                  <th scope="col" className="progress-col">申请进度</th>
-                  <th scope="col" className="risk-col">潜在风险</th>
+                  {workbenchChoiceFields(f.phase).map(({ key, label }) => (
+                    <th key={key} scope="col" className="choice-col">{label}</th>
+                  ))}
                   {completed && <th scope="col" className="closure-col">完成情况</th>}
                   <th scope="col">最新跟进</th>
                   <th scope="col" className="updated-col" aria-label="最近更新" title="最近更新（月/日）">更新</th>

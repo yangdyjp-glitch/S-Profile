@@ -997,7 +997,10 @@ summary:hover {
   min-width: 64rem;
 }
 .services-table.with-closures {
-  min-width: 70rem;
+  min-width: 60rem;
+}
+.services-table[data-phase="applying"] {
+  min-width: 54rem;
 }
 .services-table .name-col {
   width: var(--name-column-width);
@@ -1019,9 +1022,7 @@ summary:hover {
   box-sizing: content-box;
   width: 7ic;
 }
-.services-table .staff-col,
-.services-table .progress-col,
-.services-table .risk-col {
+.services-table .choice-col {
   box-sizing: content-box;
   width: calc(4ic + 2 * var(--choice-padding));
 }
@@ -1143,10 +1144,10 @@ summary:hover {
   box-shadow: 0 0 0 2px var(--primary);
 }
 .services-table .cell-edit:is(:hover, :focus-visible) :is(.tag, small, [data-project-level]) {
-  color: inherit;
+  color: var(--tag-ink, inherit);
 }
 .services-table .cell-edit:is(:hover, :focus-visible) .tag {
-  background: var(--deep);
+  background: var(--tag-bg, var(--deep));
 }
 .services-table .two-lines {
   display: -webkit-box;
@@ -1310,8 +1311,8 @@ summary:hover {
 .stage-pill,
 .chip {
   border-radius: 6px;
-  background: var(--neutral);
-  color: var(--muted);
+  background: var(--tag-bg, var(--neutral));
+  color: var(--tag-ink, var(--muted));
   padding: 2px 8px;
   font-size: 0.82rem;
   gap: 0.35rem;
@@ -1327,6 +1328,14 @@ summary:hover {
 .tag.positive {
   background: var(--selected);
   color: var(--deep);
+}
+.tag[data-closure="abandoned"] {
+  --tag-bg: #e2f3e9;
+  --tag-ink: #176442;
+}
+.tag[data-closure="refund"] {
+  --tag-bg: #fde9e8;
+  --tag-ink: #a32c2c;
 }
 .tag.amber {
   background: var(--yellow);

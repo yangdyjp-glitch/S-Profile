@@ -307,6 +307,10 @@ async function run() {
   });
   assert.equal((await svc()).phase, "applying");
   await act("return");
+  const returned = await svc();
+  assert.equal(returned.phase, "progress");
+  assert.equal(returned.progress, service.progress);
+  assert.equal(returned.risk, service.risk);
   await act("apply");
   await act("pause", {}, 422);
   const S = await call("catalogs/school", "POST", {
@@ -370,7 +374,8 @@ async function run() {
   const unchanged = await call("workspace?since=" + saved.workspace.cursor);
   assert.equal(unchanged.full, false);
   assert.ok(Object.values(unchanged.data).every((records) => records.length === 0));
-  assert.equal((await svc()).version, version + 1);
+  const beforeClosure = await svc();
+  assert.equal(beforeClosure.version, version + 1);
   await act("close", { kind: "admission" });
   await editService({ targets: ["2029-04"] });
   assert.deepEqual((await svc()).closures.at(-1).targets, ["2028-04"]);
@@ -399,6 +404,10 @@ async function run() {
   await act("close", { kind: "closed_other", note: "全部交付" });
   await act("reopen");
   await act("return");
+  const afterClosure = await svc();
+  assert.equal(afterClosure.phase, "progress");
+  assert.equal(afterClosure.progress, beforeClosure.progress);
+  assert.equal(afterClosure.risk, beforeClosure.risk);
   await act("pause");
   await act("close", { kind: "closed_other" });
   await act("reopen");

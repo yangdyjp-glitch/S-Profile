@@ -1,16 +1,26 @@
 "use client";
 import { useState } from "react";
 import { flushSync } from "react-dom";
-import { catalogOptionLabel, choices, requiresActiveStatus, type Catalog, type Service, type Student } from "../../lib/profile/model";
+import { catalogOptionLabel, choices, requiresActiveStatus, type Catalog, type Phase, type Service, type Student } from "../../lib/profile/model";
 import { ApiError, type useSite } from "./ui";
 
-const fields = [
+const staffFields = [
   { key: "teacher", label: "教务", placeholder: "待分配" },
   { key: "manager", label: "学管", placeholder: "待分配" },
+] as const;
+const fields = [
+  ...staffFields,
   { key: "progress", label: "申请进度", placeholder: "待补" },
   { key: "risk", label: "潜在风险", placeholder: "风险待补" },
 ] as const;
 type Choice = (typeof fields)[number];
+
+export function showsWorkbenchProgress(phase: Phase) {
+  return phase === "progress" || phase === "paused";
+}
+export function workbenchChoiceFields(phase: Phase): readonly Choice[] {
+  return showsWorkbenchProgress(phase) ? fields : staffFields;
+}
 
 export function WorkbenchChoices({ service, student, staff, actions, draftProgress, setDraftProgress }: {
   service: Service;
@@ -32,8 +42,7 @@ export function WorkbenchChoices({ service, student, staff, actions, draftProgre
   async function change({ key: field, label }: Choice, value: string) {
     if (saving) return;
     if (field === "progress") {
-      const active = service.phase === "progress" || service.phase === "applying";
-      if (value !== service.progress && active && service.status === "未开始" && requiresActiveStatus(value)) {
+      if (value !== service.progress && service.phase === "progress" && service.status === "未开始" && requiresActiveStatus(value)) {
         setDraftProgress(value);
         return;
       }
@@ -55,7 +64,7 @@ export function WorkbenchChoices({ service, student, staff, actions, draftProgre
     }
   }
 
-  return fields.map((choice) => {
+  return workbenchChoiceFields(service.phase).map((choice) => {
     const { key: field, label, placeholder } = choice;
     const stored = current(field);
     const draft = field === "progress" ? draftProgress : undefined;
