@@ -278,6 +278,28 @@ summary:hover {
 .form-grid > .form-head {
   margin: 0;
 }
+.profile-edit-section + .profile-edit-section {
+  margin-top: 1rem;
+  border-top: 1px solid var(--line);
+}
+.profile-edit-section > summary {
+  padding-block: 0.5rem;
+  color: var(--deep);
+  font-weight: 650;
+  cursor: pointer;
+}
+.profile-edit-section > summary:is(:hover, :focus-visible) {
+  color: var(--primary);
+}
+.profile-edit-section > summary small {
+  margin-inline-start: 0.6rem;
+  color: var(--muted);
+  font-weight: 400;
+  overflow-wrap: anywhere;
+}
+.profile-edit-section[open] > summary {
+  margin-bottom: 0.6rem;
+}
 .language-fields {
   min-width: 0;
   margin: 0;
@@ -1387,21 +1409,6 @@ summary:hover {
   gap: 10px;
   flex-wrap: wrap;
 }
-.student-summary {
-  margin-bottom: 1rem;
-  container-type: inline-size;
-}
-.student-summary > .facts {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-@container (min-width: 32rem) {
-  .student-summary > .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-}
-@container (min-width: 50rem) {
-  .student-summary > .facts {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.65fr) minmax(0, 0.75fr) minmax(0, 1.5fr);
-  }
-}
 .archive-majors {
   display: grid;
   gap: 6px;
@@ -1508,26 +1515,20 @@ summary:hover {
 .service-summary-row > .facts {
   grid-column: 1 / -1;
   grid-template-columns: subgrid;
+  align-items: start;
   column-gap: inherit;
   row-gap: 12px;
   padding: 0;
 }
-.progress-summary > h2,
+.service-summary-row > :is(h2, .current-service-heading),
 .detail-summary > :is(.subtle, [role="status"]) {
   grid-column: 1 / -1;
 }
-.service-actions {
-  display: contents;
-}
-.service-actions > .btn {
-  grid-area: 2 / 1;
-  justify-self: start;
-}
 .stage-actions {
-  grid-area: 1 / 2 / span 2;
-  justify-self: end;
   display: grid;
-  min-width: 4.75rem;
+  width: fit-content;
+  min-width: min(4.75rem, 100%);
+  max-width: 100%;
   overflow: hidden;
   background: var(--tint);
   border: 1px solid var(--line);
@@ -1553,28 +1554,15 @@ summary:hover {
 }
 @container service-overview (min-width: 32rem) {
   .service-summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .service-actions {
-    display: flex;
-    grid-column: 2 / -1;
-    grid-row: 1;
-    align-items: center;
-    justify-content: flex-end;
-    gap: 8px;
-  }
 }
 @container service-overview (min-width: 46rem) {
   .service-summary-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
-  .current-service-heading { grid-column: 1 / span 3; }
-  .service-actions { grid-column: 4 / -1; }
 }
 @container service-overview (min-width: 60rem) {
-  .service-summary-row {
-    grid-template-columns: 9.5rem repeat(5, minmax(0, 1fr)) minmax(11.75rem, 1fr);
-  }
-  .current-service-heading, .progress-summary > h2 { grid-area: 1 / 1; }
-  .detail-summary > .facts { grid-area: 1 / 2 / auto / -2; }
-  .progress-summary > .facts, .detail-summary > :is(.subtle, [role="status"]) { grid-area: 1 / 2 / auto / -1; }
-  .service-actions { grid-column: -2 / -1; }
+  .service-summary-row { grid-template-columns: 9.5rem repeat(6, minmax(0, 1fr)); }
+  .service-summary-row > :is(h2, .current-service-heading) { grid-area: 1 / 1; }
+  .service-summary-row > .facts,
+  .detail-summary > :is(.subtle, [role="status"]) { grid-area: 1 / 2 / auto / -1; }
 }
 .detail-history h2 button {
   display: flex;

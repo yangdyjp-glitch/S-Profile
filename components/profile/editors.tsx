@@ -1,5 +1,5 @@
 "use client";
-import { Fragment, useId } from "react";
+import { Fragment, useId, type FormEvent } from "react";
 import { Plus } from "lucide-react";
 import {
   catalogOptionLabel,
@@ -67,6 +67,9 @@ function StudentFields({ b, old }: { b: Binder; old?: Student }) {
       <LanguageFields b={b} />
     </div>
   );
+}
+function revealInvalidSection(event: FormEvent<HTMLDetailsElement>) {
+  event.currentTarget.open = true;
 }
 export function StudentEditor({ old, field, onDismiss }: {
   old?: Student; field?: "name" | "language"; onDismiss?: () => void;
@@ -227,6 +230,7 @@ function ClosureFields({ b }: { b: Binder }) {
 export function ServiceEditor({
   old,
   studentId,
+  profile,
   field,
   progressChange,
   initialStatus,
@@ -234,6 +238,7 @@ export function ServiceEditor({
 }: {
   old?: Service;
   studentId?: string;
+  profile?: { student: Student; serviceLabel?: string };
   field?: ServiceEditField;
   progressChange?: { value: string; dismiss: () => void };
   initialStatus?: string;
@@ -242,7 +247,7 @@ export function ServiceEditor({
   const { w, go, open } = useSite(),
     b = useValues(old ? { ...old, progress: progressChange?.value ?? old.progress,
       status: progressChange ? "" : initialStatus ?? old.status } : emptyService),
-    st = useValues(emptyStudent),
+    st = useValues(profile?.student ?? emptyStudent),
     mode = useValues({
       mode: studentId ? "existing" : "new",
       studentId: studentId || "",
@@ -261,49 +266,67 @@ export function ServiceEditor({
   const values = { ...b.v, targets: b.v.targets.filter(Boolean) };
   const updates = changed(old, values, keys);
   const hasChanges = Object.keys(updates).length > 0;
+  const student = profile?.student;
+  const studentUpdates = student ? changed(student, st.v, Object.keys(emptyStudent)) : {};
+  const studentChanged = Object.keys(studentUpdates).length > 0;
   const statusAction = field === "statusTargets" && old &&
     (old.phase === "paused" ? { action: "resume", label: "恢复服务" } :
       old.phase === "completed" ? { action: "reopen", label: "撤回误结案" } : undefined);
+  const serviceFields = (
+    <div className={quick ? "form-stack" : "form-grid"}>
+      {keys.map((k) => {
+        if (progressChange && k === "progress") return null;
+        if (progressChange && k === "status") return (
+          <Select key={k} b={b} k={k} items={choices.status.filter((status) => status !== "未开始")} required autoFocus />
+        );
+        const heading = old && !quick ? serviceEditHeadings[k] : undefined;
+        return (
+          <Fragment key={k}>
+            {heading && <h3 className="form-head wide-field">{heading}</h3>}
+            <ServiceField k={k} b={b} old={old} quick={quick} />
+            {k === "status" && statusAction && old && (
+              <button type="button" className="link" disabled={hasChanges}
+                title={hasChanges ? "请先保存目标时间" : undefined}
+                onClick={() => open(statusAction.label, <ActionEditor s={old} action={statusAction.action} />)}>
+                {statusAction.label}
+              </button>
+            )}
+          </Fragment>
+        );
+      })}
+    </div>
+  );
   return (
     <FormShell
-      unchanged={!!old && !hasChanges}
+      unchanged={!!old && !hasChanges && !studentChanged}
       onDismiss={onDismiss ?? progressChange?.dismiss}
-      sources={
-        old
-          ? [{ path: "services/" + old.id, row: old, key: "expectedVersion" }]
-          : []
-      }
+      sources={[
+        ...(old ? [{ path: "services/" + old.id, row: old, key: "expectedVersion" }] : []),
+        ...(student ? [{ path: "students/" + student.id, row: student, key: "studentVersion" }] : []),
+      ]}
       submit={old ? "保存修改" : "建立服务"}
       after={(r) => {
         if (!old) go(studentPath(r.studentId, r.id));
       }}
-      save={(vs, key, write) =>
-        old
-          ? write(
-              "services/" + old.id,
-              "PATCH",
-              {
-                ...updates,
-                expectedVersion: old.version,
-                ...vs,
-              },
-              key,
-            )
-          : write(
-              "services",
-              "POST",
-              {
-                studentId: mode.v.mode === "existing" ? mode.v.studentId : "",
-                student: st.v,
-                service: values,
-                phase: mode.v.phase,
-                reason: mode.v.reason,
-                closure: cl.v,
-                applications: needApp ? [app.v] : [],
-              },
-              key,
-            )
-      }
+      save={(vs, key, write) => {
+        if (!old) return write("services", "POST", {
+          studentId: mode.v.mode === "existing" ? mode.v.studentId : "",
+          student: st.v,
+          service: values,
+          phase: mode.v.phase,
+          reason: mode.v.reason,
+          closure: cl.v,
+          applications: needApp ? [app.v] : [],
+        }, key);
+        const studentPatch = student && studentChanged
+          ? { ...studentUpdates, expectedVersion: vs.studentVersion ?? student.version }
+          : undefined;
+        if (student && studentPatch && !hasChanges)
+          return write("students/" + student.id, "PATCH", studentPatch, key);
+        return write("services/" + old.id, "PATCH", {
+          ...updates, expectedVersion: vs.expectedVersion ?? old.version, student: studentPatch,
+        }, key);
+      }}
     >
       {!old && (
         <>
@@ -340,28 +363,18 @@ export function ServiceEditor({
           <h3 className="form-head">本次服务</h3>
         </>
       )}
-      <div className={quick ? "form-stack" : "form-grid"}>
-        {keys.map((k) => {
-          if (progressChange && k === "progress") return null;
-          if (progressChange && k === "status") return (
-            <Select key={k} b={b} k={k} items={choices.status.filter((status) => status !== "未开始")} required autoFocus />
-          );
-          const heading = old && !quick ? serviceEditHeadings[k] : undefined;
-          return (
-            <Fragment key={k}>
-              {heading && <h3 className="form-head wide-field">{heading}</h3>}
-              <ServiceField k={k} b={b} old={old} quick={quick} />
-              {k === "status" && statusAction && old && (
-                <button type="button" className="link" disabled={hasChanges}
-                  title={hasChanges ? "请先保存目标时间" : undefined}
-                  onClick={() => open(statusAction.label, <ActionEditor s={old} action={statusAction.action} />)}>
-                  {statusAction.label}
-                </button>
-              )}
-            </Fragment>
-          );
-        })}
-      </div>
+      {profile ? (
+        <>
+          <details className="profile-edit-section" open onInvalidCapture={revealInvalidSection}>
+            <summary>学生资料</summary>
+            <StudentFields b={st} old={profile.student} />
+          </details>
+          <details className="profile-edit-section" onInvalidCapture={revealInvalidSection}>
+            <summary>服务进度{profile.serviceLabel && <small>{profile.serviceLabel}</small>}</summary>
+            {serviceFields}
+          </details>
+        </>
+      ) : serviceFields}
       {!old && (
         <>
           <h3 className="form-head">建档阶段</h3>

@@ -72,6 +72,22 @@ function initializeCurrentTargets(s: Service) {
   if (!s.targets.length && (s.status === "未开始" || s.status === "当期申请"))
     s.targets = [...s.original];
 }
+function studentChange(
+  db: D1Database, actor: Account, input: Input, list: Catalog[], old: Student | null,
+): Plan {
+  if (old) expect(old, input.expectedVersion);
+  const student = {
+    ...(old ? bump(old) : meta(id("ST"))),
+    ...fields(emptyStudent, input, old ?? undefined),
+  } as Student;
+  updateExceptions(student, input);
+  syncStudentLanguage(student, old ? input : undefined);
+  validateStudent(student, list, old ?? undefined);
+  return {
+    sql: record(db, "students", old, student, actor, old ? "修改学生档案" : "建立学生档案", student.id),
+    result: { id: student.id, studentId: student.id },
+  };
+}
 export function transition(
   s: Service,
   action: string,
@@ -210,24 +226,7 @@ export async function business(
       key ? one<Student>(db, "students", key) : null,
       all<Catalog>(db, "catalogs", "WHERE kind='manager'"),
     ]);
-    if (old) expect(old, input.expectedVersion);
-    const s = {
-      ...(old ? bump(old) : meta(id("ST"))),
-      ...fields(emptyStudent, input, old ?? undefined),
-    } as Student;
-    updateExceptions(s, input);
-    syncStudentLanguage(s, old ? input : undefined);
-    validateStudent(s, list, old ?? undefined);
-    sql = record(
-      db,
-      "students",
-      old,
-      s,
-      actor,
-      old ? "修改学生档案" : "建立学生档案",
-      s.id,
-    );
-    return { sql, result: { id: s.id, studentId: s.id } };
+    return studentChange(db, actor, input, list, old);
   }
   if (
     (section === "services" && !key && method === "POST") ||
@@ -374,9 +373,13 @@ export async function business(
       else if (!old.original.length && s.original.length) initializeCurrentTargets(s);
       updateExceptions(s, input);
       action = "修改服务资料";
+      if (input.student !== undefined) {
+        const student = await one<Student>(db, "students", s.studentId);
+        sql.push(...studentChange(db, actor, object(input.student), list, student).sql);
+      }
     } else throw new Problem(404, "此服务操作不存在");
     validateService(s, list, apps, old);
-    sql = record(db, "services", old, s, actor, action, s.studentId, s.id);
+    sql.push(...record(db, "services", old, s, actor, action, s.studentId, s.id));
     return { sql, result: { id: s.id, serviceId: s.id } };
   }
   if (

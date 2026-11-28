@@ -697,6 +697,36 @@ async function run() {
   assert.equal(noScores.declaration, "暂无语言成绩");
   assert.ok(!noScores.missing.includes("scores"));
   await call(languagePath, "PATCH", { expectedVersion: noScores.version, declaration: "已有成绩" }, { status: 422 });
+  const studentPath = "students/" + sid, servicePath = "services/" + vid;
+  const [priorStudent, priorService] = await Promise.all([call(studentPath), svc()]);
+  const jointEdit = {
+    expectedVersion: priorService.version,
+    notes: "已核对服务进度",
+    student: { expectedVersion: priorStudent.version, name: "验收联合编辑" },
+  };
+  for (const [fields, status] of [
+    [{ expectedVersion: priorService.version - 1 }, 409],
+    [{ student: { ...jointEdit.student, expectedVersion: priorStudent.version - 1 } }, 409],
+    [{ risk: "无效选项" }, 422],
+    [{ student: { ...jointEdit.student, name: "" } }, 422],
+    [{ student: { ...jointEdit.student, name: "跨表同名" } }, 409],
+  ]) {
+    await call(servicePath, "PATCH", { ...jointEdit, ...fields }, { status });
+  }
+  assert.deepEqual(await call(studentPath), priorStudent);
+  assert.deepEqual(await svc(), priorService);
+  const jointOptions = { key: randomUUID(), headers: syncHeaders((await call("workspace?since=0")).cursor) };
+  const jointSave = await call(servicePath, "PATCH", jointEdit, jointOptions);
+  assert.deepEqual(await call(servicePath, "PATCH", jointEdit, jointOptions), jointSave);
+  const { students: [updatedStudent], services: [updatedService] } = jointSave.workspace.data;
+  assert.equal(updatedStudent.id, sid);
+  assert.equal(updatedStudent.name, jointEdit.student.name);
+  assert.equal(updatedStudent.version, priorStudent.version + 1);
+  assert.equal(updatedService.id, vid);
+  assert.equal(updatedService.notes, jointEdit.notes);
+  assert.equal(updatedService.version, priorService.version + 1);
+  assert.deepEqual(await call(studentPath), updatedStudent);
+  assert.deepEqual(await svc(), updatedService);
   const oldChannel = deletedItems.find((c) => c.kind === "channel");
   const deletedNameBook = new ExcelJS.Workbook();
   deletedNameBook.addWorksheet("进行中").addRows([
