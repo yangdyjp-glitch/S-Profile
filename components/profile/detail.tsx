@@ -41,6 +41,7 @@ import {
 } from "./ui";
 import { PageHead } from "./workbench";
 import { ProjectNames } from "./project-names";
+import { DetailFields, DetailValue, detailControlId, editableFact } from "./detail-fields";
 function intakeMonths(months: string[], fallback = "待补") {
   return months.length ? months.map((month, i) => (
     <span className="intake-month" key={i}>{month}{i + 1 < months.length && "、"}</span>
@@ -398,8 +399,8 @@ function ServiceActions({ s }: { s: Service }) {
           : ["reopen"];
   return (
     <div className="actions">
-      <button className="btn" onClick={() => open("编辑服务与进度", <ServiceEditor old={s} />, true)}>
-        <Pencil size={15} /> 编辑服务与进度
+      <button className="btn" onClick={() => open("服务进度", <ServiceEditor old={s} />, true)}>
+        服务进度
       </button>
       {ops.map((action) => (
         <button className="btn" key={action}
@@ -420,12 +421,12 @@ function ServicePanels({ s }: { s: Service }) {
         <h2 id="work-heading">工作进度</h2>
         <Facts
           values={[
-            [s.phase === "completed" ? "结束前状况" : "学生状况", s.status],
-            ["材料准备", s.collection],
-            ["材料制作", s.production],
-            ["申请进度", s.progress],
-            ["申请风险", s.risk],
-            ["学校出愿信息", s.publication],
+            editableFact(s.phase === "completed" ? "结束前状况" : "学生状况", { service: s, field: "status" }),
+            editableFact("材料准备", { service: s, field: "collection" }),
+            editableFact("材料制作", { service: s, field: "production" }),
+            editableFact("申请进度", { service: s, field: "progress" }),
+            editableFact("申请风险", { service: s, field: "risk" }),
+            editableFact("学校出愿信息", { service: s, field: "publication" }),
           ]}
         />
       </section>
@@ -504,7 +505,7 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
   }, [id, serviceId, selectedId, legacy]);
   if (!st) return <Empty title="找不到学生档案" />;
   return (
-    <>
+    <DetailFields scope={st.id + "/" + (selectedId ?? "")}>
       <PageHead
         title={st.name}
         subtitle="永久档案"
@@ -531,19 +532,15 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
       />
       <section className="panel student-summary" aria-label="学生资料">
         <Facts values={[
-          ["所在地", st.location],
-          ["当前学管", labelOf(w.catalogs, st.manager, "学管待分配")],
+          editableFact("所在地", { student: st, field: "location" }),
+          editableFact("当前学管", { student: st, field: "manager" }),
           ["首次签单", st.orderMonth],
           ["专业方向", choices.length ? (
             <ul className="archive-majors">
               {choices.map(({ service, projects }) => (
                 <li key={service.id}>
-                  <button className="link" aria-haspopup="dialog"
-                    aria-label={"编辑专业方向 · " + (service.major || "待补") + " · " + (projects.join("、") || "项目待补")}
-                    aria-describedby={choices.length > 1 ? "major-context-" + service.id : undefined}
-                    onClick={() => open("编辑专业方向", <ServiceEditor old={service} field="major" />)}>
-                    {service.major || "待补"} <Pencil size={13} aria-hidden="true" />
-                  </button>
+                  <DetailValue service={service} field="major" label="专业方向"
+                    describedBy={choices.length > 1 ? "major-context-" + service.id : undefined} />
                   {choices.length > 1 && (
                     <small id={"major-context-" + service.id}>
                       {projects.join("、") || "合同项目待补"}
@@ -554,7 +551,7 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
                 </li>
               ))}
             </ul>
-          ) : "待补"],
+          ) : "待补", s ? detailControlId(s, "major") : undefined],
           ["历次服务", choices.length + " 份"],
           ["语言情况", languageStatus(st) || "历史待补"],
         ]} />
@@ -590,11 +587,11 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
           )}
         </div>
         {selected && s && <Facts values={[
-          ["合同项目", <ProjectNames names={selected.projects} fallback="合同项目待补" />],
-          ["甲方渠道", labelOf(w.catalogs, s.channel)],
-          ["原合同入学目标", intakeMonths(s.original)],
-          ["当前入学目标", intakeMonths(s.targets, "目标待补")],
-          ["教务老师", labelOf(w.catalogs, s.teacher, "教务待分配")],
+          editableFact("合同项目", { service: s, field: "projects" }),
+          editableFact("甲方渠道", { service: s, field: "channel" }),
+          editableFact("原合同入学目标", { service: s, field: "original" }),
+          editableFact("当前入学目标", { service: s, field: "targets" }),
+          editableFact("教务老师", { service: s, field: "teacher" }),
         ]} />}
         {!choices.length && <span className="subtle">暂无服务</span>}
         {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
@@ -616,6 +613,6 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
         )}
         <HistoryPanel studentId={id} serviceId={selectedId} />
       </div>
-    </>
+    </DetailFields>
   );
 }

@@ -361,11 +361,7 @@ export async function business(
         version: old.version + 1,
         updatedAt: stamp(),
       });
-      if (
-        old.original.length &&
-        JSON.stringify(s.original) !== JSON.stringify(old.original)
-      )
-        fail("original", "原合同入学目标已留档，请修改当前入学目标");
+      if (Object.hasOwn(input, "original")) s.original.sort();
       if (
         (old.phase === "paused" || old.phase === "completed") &&
         s.status !== old.status

@@ -14,9 +14,11 @@ import { projectLevel, ProjectNames } from "./project-names";
 import {
   catalogOptionLabel,
   catalogs,
+  intakeLabel,
   labelOf,
   labels,
   phases,
+  upcomingIntakes,
   type Account,
   type Catalog,
   type Kind,
@@ -92,6 +94,31 @@ export function Brand() {
     </div>
   );
 }
+export type FieldAnchor = HTMLButtonElement | HTMLSelectElement;
+export function trackFieldAnchor(panel: HTMLElement, anchor: FieldAnchor) {
+  const position = () => {
+    const { left, top, bottom } = anchor.getBoundingClientRect();
+    const margin = 8;
+    const maxLeft = window.innerWidth - panel.offsetWidth - margin;
+    const maxTop = window.innerHeight - panel.offsetHeight - margin;
+    const above = top - panel.offsetHeight - margin;
+    const y = bottom + margin > maxTop && above >= margin ? above : bottom + margin;
+    panel.style.setProperty("--cell-left", Math.max(margin, Math.min(left, maxLeft)) + "px");
+    panel.style.setProperty("--cell-top", Math.max(margin, Math.min(y, maxTop)) + "px");
+  };
+  position();
+  const observer = new ResizeObserver(position);
+  observer.observe(panel);
+  const anchorBox = anchor instanceof HTMLSelectElement ? anchor.parentElement : anchor;
+  if (anchorBox) observer.observe(anchorBox);
+  window.addEventListener("resize", position);
+  window.addEventListener("scroll", position, true);
+  return () => {
+    observer.disconnect();
+    window.removeEventListener("resize", position);
+    window.removeEventListener("scroll", position, true);
+  };
+}
 export function Dialog({ view, close }: { view: View; close: () => void }) {
   const ref = useRef<HTMLDialogElement>(null),
     label = useId();
@@ -101,29 +128,12 @@ export function Dialog({ view, close }: { view: View; close: () => void }) {
     d.showModal();
     const anchor = view.anchor;
     if (!anchor) return () => d.close();
-
-    const position = () => {
-      const { left, top, bottom } = anchor.getBoundingClientRect();
-      const margin = 8;
-      const maxLeft = window.innerWidth - d.offsetWidth - margin;
-      const maxTop = window.innerHeight - d.offsetHeight - margin;
-      const above = top - d.offsetHeight - margin;
-      const y = bottom + margin > maxTop && above >= margin ? above : bottom + margin;
-      d.style.setProperty("--cell-left", Math.max(margin, Math.min(left, maxLeft)) + "px");
-      d.style.setProperty("--cell-top", Math.max(margin, Math.min(y, maxTop)) + "px");
-    };
-    position();
-    const observer = new ResizeObserver(position);
-    observer.observe(d);
-    window.addEventListener("resize", position);
-    window.addEventListener("scroll", position, true);
+    const stopTracking = trackFieldAnchor(d, anchor);
     const input = d.querySelector<HTMLElement>("textarea") ??
       d.querySelector<HTMLElement>("input:not(:disabled), select:not(:disabled)");
     input?.focus({ preventScroll: true });
     return () => {
-      observer.disconnect();
-      window.removeEventListener("resize", position);
-      window.removeEventListener("scroll", position, true);
+      stopTracking();
       d.close();
     };
   }, [view]);
@@ -614,107 +624,28 @@ export function CatalogField({
     </div>
   );
 }
-export function Months({
-  b,
-  k,
-  required = false,
-  disabled = false,
-}: {
-  b: Binder;
-  k: string;
-  required?: boolean;
-  disabled?: boolean;
+export function IntakeChoices({ b, k, required = false, existing = [] }: {
+  b: Binder; k: "original" | "targets"; required?: boolean; existing?: string[];
 }) {
-  const values: string[] = b.v[k] || [],
-    [value, choose] = useState(""),
-    [hint, setHint] = useState("");
-  return (
-    <div className="field wide-field">
-      <span>
-        {labels[k]}
-        {required && <b> *</b>}
-      </span>
-      <div className="chips">
-        {values.map((v) => (
-          <span className="chip" key={v}>
-            {v}
-            {!disabled && (
-              <button
-                type="button"
-                aria-label={"移除 " + v}
-                onClick={() =>
-                  b.set(
-                    k,
-                    values.filter((x) => x !== v),
-                  )
-                }
-              >
-                <X size={12} />
-              </button>
-            )}
-          </span>
-        ))}
-      </div>
-      {!disabled && (
-        <div className="inline-add">
-          <input
-            type="month"
-            value={value}
-            aria-label={labels[k]}
-            onInput={(e) => choose(e.currentTarget.value)}
-            onBlur={(e) => choose(e.currentTarget.value)}
-            onChange={(e) => {
-              choose(e.target.value);
-              setHint("");
-            }}
-          />
-          <button
-            type="button"
-            className="btn"
-            onClick={() => {
-              if (!/^\d{4}-(04|10)$/.test(value)) {
-                setHint("请选择 4 月或 10 月的入学批次");
-                return;
-              }
-              b.set(k, [...new Set([...values, value])].sort());
-              choose("");
-            }}
-          >
-            添加批次
-          </button>
-        </div>
-      )}
-      {hint && <small>{hint}</small>}
-    </div>
+  const [upcoming] = useState(() => upcomingIntakes());
+  const selected: string[] = b.v[k];
+  const previous = existing.filter((value) => !upcoming.includes(value));
+  const option = (month: string) => (
+    <label key={month}>
+      <input type="checkbox" name={k} value={month} checked={selected.includes(month)}
+        onChange={(event) => b.set(k, event.target.checked
+          ? [...selected, month].sort() : selected.filter((value) => value !== month))} />
+      {intakeLabel(month)}
+    </label>
   );
-}
-export function TargetMonths({ b, required = false }: { b: Binder; required?: boolean }) {
-  const targets: string[] = b.v.targets;
-  const rows = targets.length ? targets : [""];
   return (
-    <div className="field wide-field" role="group" aria-label={labels.targets}>
-      <div className="field-label">
-        {labels.targets}{required && <b aria-hidden="true"> *</b>}
-        <button type="button" className="link mini" disabled={rows.includes("")}
-          onClick={() => b.set("targets", [...targets, ""])}>
-          <Plus size={13} />添加批次
-        </button>
-      </div>
-      {rows.map((month, index) => (
-        <div className="inline-add" key={index}>
-          <input type="month" name="targets" aria-label={labels.targets + " " + (index + 1)}
-            min="1000-04" max="9999-10" step={6} value={month}
-            required={required && !rows.some(Boolean) && index === 0}
-            onChange={(e) => b.set("targets", rows.map((v, i) => i === index ? e.currentTarget.value : v))} />
-          {(month || rows.length > 1) && (
-            <button type="button" className="icon" aria-label={"移除批次 " + (month || (index + 1))}
-              onClick={() => b.set("targets", rows.filter((_, i) => i !== index))}>
-              <X size={16} />
-            </button>
-          )}
-        </div>
-      ))}
-      <small>可选 4 月或 10 月</small>
+    <div className="field wide-field intake-field" role="group" aria-label={labels[k]}>
+      <span>{labels[k]}{required && <b aria-hidden="true"> *</b>}</span>
+      <div className="check-group intake-options">{upcoming.map(option)}</div>
+      {previous.length > 0 && <>
+        <small>已存批次</small>
+        <div className="check-group intake-options">{previous.map(option)}</div>
+      </>}
     </div>
   );
 }
@@ -771,12 +702,13 @@ export function Section({
     </section>
   );
 }
-export function Facts({ values }: { values: [string, ReactNode][] }) {
+export type Fact = [string, ReactNode, string?];
+export function Facts({ values }: { values: Fact[] }) {
   return (
     <dl className="facts">
-      {values.map(([k, v]) => (
+      {values.map(([k, v, controlId]) => (
         <div key={k}>
-          <dt>{k}</dt>
+          <dt>{controlId ? <label htmlFor={controlId}>{k}</label> : k}</dt>
           <dd>{v || "待补"}</dd>
         </div>
       ))}

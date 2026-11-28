@@ -296,6 +296,22 @@ const timeFormat = new Intl.DateTimeFormat("zh-CN", {
   hour12: false,
 });
 export const tokyoDay = (d = new Date()) => dayFormat.format(d);
+export function upcomingIntakes(date = new Date()): string[] {
+  const [year, month] = tokyoDay(date).split("-").map(Number);
+  let intakeYear = month >= 10 ? year + 1 : year;
+  let intakeMonth = month < 4 || month >= 10 ? "04" : "10";
+  return Array.from({ length: 8 }, () => {
+    const intake = intakeYear + "-" + intakeMonth;
+    if (intakeMonth === "10") intakeYear++;
+    intakeMonth = intakeMonth === "04" ? "10" : "04";
+    return intake;
+  });
+}
+export const intakeLabel = (value: string) => value.replace("-", ".");
+export function hasLaterTargets(original: string[], targets: string[]) {
+  const last = [...original].sort().at(-1) ?? "";
+  return targets.length > 0 && targets.every((value) => value > last);
+}
 export const timeLabel = (s: string) => s ? timeFormat.format(new Date(s)) : "时间待核";
 export const currentClosure = (s: Service) =>
   [...s.closures].reverse().find((c) => !c.undone);

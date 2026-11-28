@@ -1396,10 +1396,54 @@ summary:hover {
 .archive-majors small {
   display: block;
 }
-.archive-majors .link {
-  text-align: start;
+.detail-field-value {
+  display: block;
+  position: relative;
+  width: fit-content;
   max-width: 100%;
+  padding: 1px 3px;
+  margin-inline-start: -3px;
+  border-radius: 3px;
+  font: inherit;
+  text-align: start;
+  white-space: pre-wrap;
   overflow-wrap: anywhere;
+  cursor: pointer;
+}
+.detail-field-value:is(:hover, :focus-visible),
+.detail-field-choice:has(:focus-visible),
+.facts > div:has(> dt label:hover) .detail-field-value {
+  background: var(--primary);
+  color: white;
+  box-shadow: 0 0 0 2px var(--primary);
+}
+.detail-field-value [data-project-level] {
+  white-space: normal;
+}
+.detail-field-value:is(:hover, :focus-visible) [data-project-level],
+.facts > div:has(> dt label:hover) .detail-field-value [data-project-level] {
+  color: inherit;
+}
+.facts dt label { cursor: pointer; }
+.detail-field-panel {
+  position: fixed;
+  z-index: 10;
+  inset: var(--cell-top, 8px) auto auto var(--cell-left, 8px);
+  width: min(24rem, calc(100vw - 16px));
+  max-height: min(34rem, calc(100dvh - 16px));
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: white;
+  color: var(--ink);
+  border: 1px solid var(--control-border);
+  border-radius: var(--card-radius);
+  box-shadow: 0 6px 24px rgb(24 55 82 / 18%);
+}
+.detail-field-panel .dialog-body {
+  padding: 12px 14px;
+}
+.detail-field-panel .dialog-foot {
+  padding: 8px 14px;
 }
 .current-service-heading h2 {
   margin: 0;
@@ -1749,6 +1793,23 @@ summary:hover {
   border: 1px solid var(--line);
   border-radius: 6px;
   font-size: 0.88rem;
+}
+.intake-field { container-type: inline-size; }
+.check-group.intake-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+@container (min-width: 25rem) {
+  .check-group.intake-options { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+.intake-options label {
+  cursor: pointer;
+  white-space: nowrap;
+}
+.intake-options label:has(:checked) {
+  color: var(--deep);
+  background: var(--selected);
+  border-color: var(--primary);
 }
 .chip button {
   display: grid;

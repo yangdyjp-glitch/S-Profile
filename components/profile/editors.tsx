@@ -27,11 +27,10 @@ import {
   CatalogField,
   changed,
   FormShell,
-  Months,
+  IntakeChoices,
   request,
   Select,
   studentPath,
-  TargetMonths,
   Text,
   Toggle,
   useSite,
@@ -112,14 +111,15 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" })
   );
 }
 export type ServiceListField = "major" | "projects" | "statusTargets";
+export type ServiceEditField = ServiceListField | "original" | "targets";
 type ServiceFormKey = keyof typeof emptyService;
 const serviceEditHeadings: Partial<Record<ServiceFormKey, string>> = {
   channel: "合同与目标",
   status: "工作进度",
   special: "特记与备注",
 };
-function serviceFormKeys(old: Service | undefined, v: Values, field?: ServiceListField | "progress"): ServiceFormKey[] {
-  const statusFields: ServiceFormKey[] = (old && !field) || v.status === "延期" ? ["status", "targets"] : ["status"];
+function serviceFormKeys(v: Values, field?: ServiceEditField | "progress"): ServiceFormKey[] {
+  const statusFields: ServiceFormKey[] = !field || v.status === "延期" ? ["status", "targets"] : ["status"];
   if (!field) return [
     "channel", "teacher", "projects", "major", "original", ...statusFields,
     "collection", "production", "progress", "risk", "publication", "special", "notes",
@@ -142,9 +142,9 @@ function ServiceField({ b, k, old, quick }: { b: Binder; k: ServiceFormKey; old?
     case "major":
       return <Text b={b} k={k} type={quick ? "area" : "text"} wide required={required} />;
     case "original":
-      return <Months b={b} k={k} required={required} disabled={!!old?.original.length} />;
+      return <IntakeChoices b={b} k={k} existing={old?.original} required={required} />;
     case "targets":
-      return <TargetMonths b={b} required={required && b.v.status === "延期"} />;
+      return <IntakeChoices b={b} k={k} existing={old?.targets} required={required && b.v.status === "延期"} />;
     case "status":
       return <Select b={b} k={k} required={required}
         disabled={old?.phase === "paused" || old?.phase === "completed"}
@@ -233,14 +233,19 @@ export function ServiceEditor({
   studentId,
   field,
   progressChange,
+  initialStatus,
+  onDismiss,
 }: {
   old?: Service;
   studentId?: string;
-  field?: ServiceListField;
+  field?: ServiceEditField;
   progressChange?: { value: string; dismiss: () => void };
+  initialStatus?: string;
+  onDismiss?: () => void;
 }) {
   const { w, go, open } = useSite(),
-    b = useValues(old && progressChange ? { ...old, progress: progressChange.value, status: "" } : old || emptyService),
+    b = useValues(old ? { ...old, progress: progressChange?.value ?? old.progress,
+      status: progressChange ? "" : initialStatus ?? old.status } : emptyService),
     st = useValues(emptyStudent),
     mode = useValues({
       mode: studentId ? "existing" : "new",
@@ -255,7 +260,7 @@ export function ServiceEditor({
     (b.v.progress === "完成申请" ||
       (mode.v.phase === "completed" && cl.v.kind === "admission"));
   const editedField = progressChange ? "progress" : field;
-  const keys = serviceFormKeys(old, b.v, editedField);
+  const keys = serviceFormKeys(b.v, editedField);
   const quick = !!editedField;
   const values = { ...b.v, targets: b.v.targets.filter(Boolean) };
   const updates = changed(old, values, keys);
@@ -266,7 +271,7 @@ export function ServiceEditor({
   return (
     <FormShell
       unchanged={!!old && !hasChanges}
-      onDismiss={progressChange?.dismiss}
+      onDismiss={onDismiss ?? progressChange?.dismiss}
       sources={
         old
           ? [{ path: "services/" + old.id, row: old, key: "expectedVersion" }]
@@ -294,7 +299,7 @@ export function ServiceEditor({
               {
                 studentId: mode.v.mode === "existing" ? mode.v.studentId : "",
                 student: studentPayload(st.v),
-                service: { ...values, targets: keys.includes("targets") ? values.targets : [] },
+                service: values,
                 phase: mode.v.phase,
                 reason: mode.v.reason,
                 closure: cl.v,
@@ -380,11 +385,13 @@ export function ServiceEditor({
     </FormShell>
   );
 }
-export function ActionEditor({ s, action }: { s: Service; action: string }) {
+export function ActionEditor({ s, action, resumeStatus = "", onDismiss }: {
+  s: Service; action: string; resumeStatus?: string; onDismiss?: () => void;
+}) {
   const { w } = useSite(),
     b = useValues({
       phase: s.pauses.at(-1)?.from || "progress",
-      status: "",
+      status: resumeStatus,
       targets: s.targets,
       kind: "",
       note: "",
@@ -413,6 +420,7 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
   return (
     <FormShell
       submit={submit[action]}
+      onDismiss={onDismiss}
       sources={[{ path: "services/" + s.id, row: s, key: "expectedVersion" }]}
       save={(vs, key, write) =>
         write(
@@ -442,7 +450,7 @@ export function ActionEditor({ s, action }: { s: Service; action: string }) {
             required
           />
           <Select b={b} k="status" items={choices.status} required />
-          {b.v.status === "延期" && <TargetMonths b={b} required />}
+          {b.v.status === "延期" && <IntakeChoices b={b} k="targets" existing={s.targets} required />}
         </div>
       )}
       {action === "close" && (

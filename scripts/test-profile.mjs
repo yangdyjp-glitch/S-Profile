@@ -7,7 +7,7 @@ import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
 import { mergeWorkspace } from "../lib/profile/sync.ts";
-import { languageStatus } from "../lib/profile/model.ts";
+import { languageStatus, upcomingIntakes } from "../lib/profile/model.ts";
 import { cleanStoredEntry, withoutRepeatedEntryDate } from "../lib/profile/entry-text.mjs";
 
 async function createSitesRuntime() {
@@ -42,6 +42,12 @@ async function createSitesRuntime() {
   }
   return mf;
 }
+assert.deepEqual(upcomingIntakes(new Date("2026-11-28T00:00:00+09:00")), [
+  "2027-04", "2027-10", "2028-04", "2028-10", "2029-04", "2029-10", "2030-04", "2030-10",
+]);
+assert.equal(upcomingIntakes(new Date("2026-03-31T14:59:59Z"))[0], "2026-04");
+assert.equal(upcomingIntakes(new Date("2026-03-31T15:00:00Z"))[0], "2026-10");
+assert.equal(upcomingIntakes(new Date("2026-09-30T15:00:00Z"))[0], "2027-04");
 const railway = process.argv.includes("--railway");
 const runtime = railway
   ? await (await import("./test-railway-runtime.mjs")).createRailwayTestRuntime()
@@ -252,8 +258,15 @@ async function run() {
   assert.deepEqual(editedService.targets, ["2028-04", "2028-10"]);
   assert.deepEqual(editedService.original, service.original);
   await editService({ targets: ["2028-06"] }, 422);
-  await editService({ original: ["2028-04"] }, 422);
+  await editService({ original: ["2028-05"] }, 422);
   assert.equal((await svc()).version, editedService.version);
+  await editService({ original: ["2027-10"] });
+  const corrected = await svc();
+  assert.deepEqual(corrected.original, ["2027-10"]);
+  assert.deepEqual(corrected.targets, editedService.targets);
+  const correction = (await call("history/services/" + vid))[0];
+  assert.deepEqual(JSON.parse(correction.before).original, service.original);
+  assert.deepEqual(JSON.parse(correction.after).original, corrected.original);
   await act("close", { kind: "admission" }, 422);
   await act("pause", { reason: "等待补件" });
   await act("resume", { status: "延期", targets: ["2027-04"] }, 422);

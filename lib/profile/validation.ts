@@ -1,4 +1,4 @@
-import { choices, currentClosure, hasLanguageScore, identity, isExamScore, labels, requiresActiveStatus } from "./model";
+import { choices, currentClosure, hasLanguageScore, hasLaterTargets, identity, isExamScore, labels, requiresActiveStatus } from "./model";
 import type { Application, Catalog, Service, Student } from "./model";
 export class Problem extends Error {
   constructor(
@@ -121,9 +121,7 @@ export function validateService(
   if (
     s.status === "延期" &&
     !s.missing?.includes("targets") &&
-    (!s.targets.length ||
-      (s.original.length &&
-        s.targets.some((v) => v <= [...s.original].sort().at(-1)!)))
+    !hasLaterTargets(s.original, s.targets)
   )
     fail("targets", "延期需填写晚于原合同最后一个批次的新目标");
   if (
