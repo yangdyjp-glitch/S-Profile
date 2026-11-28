@@ -1,6 +1,6 @@
 import { type Revision, type Workspace } from "./model";
 import type { Source } from "./excel-model";
-import { type Filters, defaultFilters, serviceRows } from "./list";
+import { type Filters, activeWorkbenchFilters, defaultFilters, serviceRows } from "./list";
 import {
   type Input,
   revisionSelect,
@@ -22,7 +22,7 @@ export async function exportData(
   input: Input,
 ): Promise<ExportData> {
   const full = input.scope === "full",
-    filters = { ...defaultFilters, ...(input.filters as Partial<Filters>) };
+    filters = activeWorkbenchFilters({ ...defaultFilters, ...(input.filters as Partial<Filters>) });
   const queries = workspaceQueries(db);
   if (full)
     queries.push(

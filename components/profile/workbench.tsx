@@ -35,15 +35,19 @@ import {
   type Student,
 } from "../../lib/profile/model";
 import {
+  activeWorkbenchFilters,
   defaultFilters,
   serviceRows,
+  serviceSortLabels,
+  showsWorkbenchProgress,
   type Filters,
+  type ServiceSortField,
 } from "../../lib/profile/list";
 import { studentColumns, studentListRows, studentNameOrder, type StudentSort } from "../../lib/profile/student-list";
 import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type EntryDraft, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
-import { WorkbenchChoices, showsWorkbenchProgress, workbenchChoiceFields } from "./workbench-choices";
+import { WorkbenchChoices, workbenchChoiceFields } from "./workbench-choices";
 type ListActions = Pick<ReturnType<typeof useSite>, "open" | "go" | "write" | "refresh" | "notice">;
 type ListField = ServiceListField | "name" | "entry";
 const fieldNames: Record<ListField, string> = {
@@ -128,12 +132,6 @@ export function PageNav({
     </div>
   );
 }
-function activeWorkbenchFilters(filters: Filters): Filters {
-  if (!showsWorkbenchProgress(filters.phase) && (filters.progress || filters.risk)) {
-    return { ...filters, progress: "", risk: "" };
-  }
-  return filters;
-}
 export function ExportDialog({ filters }: { filters: Filters }) {
   const { close, notice } = useSite(),
     [scope, setScope] = useState("filtered"),
@@ -144,7 +142,7 @@ export function ExportDialog({ filters }: { filters: Filters }) {
     setError("");
     let worker: Worker | undefined;
     try {
-      const data = await request("exports", "POST", { scope, filters: activeWorkbenchFilters(filters) });
+      const data = await request("exports", "POST", { scope, filters });
       worker = new Worker(new URL(exportWorkerUrl, document.baseURI), { type: "module" });
       const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
         worker!.onmessage = (e) =>
@@ -280,6 +278,22 @@ function AdmittedSchools({ service, admissions, nameOf, open }: {
         </li>
       ))}
     </ul>
+  );
+}
+function SortButton({ label, title = label, direction, initial = "ascending", onSort }: {
+  label: string;
+  title?: string;
+  direction?: StudentSort["direction"];
+  initial?: StudentSort["direction"];
+  onSort: (direction: StudentSort["direction"]) => void;
+}) {
+  const next = direction === "ascending" ? "descending" : direction === "descending" ? "ascending" : initial;
+  const Icon = direction === "ascending" ? ChevronUp : direction === "descending" ? ChevronDown : ChevronsUpDown;
+  return (
+    <button type="button" className="table-sort" aria-pressed={!!direction}
+      title={`按${title}${next === "ascending" ? "升序" : "降序"}排列`} onClick={() => onSort(next)}>
+      {label}<Icon aria-hidden="true" />
+    </button>
   );
 }
 const ServiceRow = memo(function ServiceRow({ service: s, student: st, log, admissions, staff, nameOf, actions }: {
@@ -441,8 +455,18 @@ export function Workbench({
   const set = (k: keyof Filters, v: string) => changeFilters({ ...f, [k]: v });
   const completed = f.phase === "completed";
   const activeFilters = useMemo(() => activeWorkbenchFilters(f), [f]);
+  const directionFor = (field: ServiceSortField) => activeFilters.sort === field ? activeFilters.sortDirection : undefined;
+  const sortBy = (sort: ServiceSortField, sortDirection?: StudentSort["direction"]) => changeFilters({ ...f, sort, sortDirection });
+  const sortMenuLabels = { ...serviceSortLabels, name: "姓名排序", target: "入学目标",
+    updated: directionFor("updated") === "ascending" ? "最早更新" : "最近更新" };
+  const sortButton = (field: ServiceSortField, label: string = serviceSortLabels[field]) => (
+    <SortButton label={label} title={serviceSortLabels[field]} direction={directionFor(field)}
+      initial={field === "updated" ? "descending" : "ascending"} onSort={(direction) => sortBy(field, direction)} />
+  );
   const deferred = useDeferredValue(activeFilters);
-  const listFilters = deferred.phase === f.phase ? deferred : activeFilters;
+  const sameOrder = deferred.phase === activeFilters.phase && deferred.sort === activeFilters.sort
+    && deferred.sortDirection === activeFilters.sortDirection;
+  const listFilters = sameOrder ? deferred : activeFilters;
   const rows = useMemo(() => serviceRows(w, listFilters), [w, listFilters]);
   const hasRows = rows.length > 0;
   useLayoutEffect(() => {
@@ -477,10 +501,10 @@ export function Workbench({
   }, [w.services]);
   const cat = useCallback((v: string, blank = "待补") => names.get(v) || blank, [names]),
     nFilters = Object.entries(activeFilters).filter(
-      ([k, v]) => !["phase", "q", "sort"].includes(k) && v,
+      ([k, v]) => !["phase", "q", "sort", "sortDirection"].includes(k) && v,
     ).length;
   const filters: {
-    k: keyof Filters;
+    k: Exclude<keyof Filters, "phase" | "q" | "sort" | "sortDirection">;
     title: string;
     items: (string | string[])[];
   }[] = !more ? [] : [
@@ -562,12 +586,13 @@ export function Workbench({
           <select
             className="sort"
             aria-label="服务排序"
-            value={f.sort}
-            onChange={(e) => set("sort", e.target.value)}
+            value={activeFilters.sort}
+            onChange={(e) => sortBy(e.target.value as ServiceSortField)}
           >
-            <option value="updated">最近更新</option>
-            <option value="name">姓名排序</option>
-            <option value="target">入学目标</option>
+            {Object.entries(sortMenuLabels).filter(([key]) => key !== "progress" || showsWorkbenchProgress(f.phase))
+              .map(([key, label]) => (
+                <option key={key} value={key}>{label}</option>
+              ))}
           </select>
           <button
             className="btn primary create-service"
@@ -616,7 +641,7 @@ export function Workbench({
             tabIndex={0}
             onFocus={(e) => {
               if (e.currentTarget.scrollWidth > e.currentTarget.clientWidth && e.target.matches(":focus-visible")) {
-                e.target.closest("td:not(:first-child)")?.scrollIntoView({ block: "nearest", inline: "nearest" });
+                e.target.closest(":is(th, td):not(:first-child)")?.scrollIntoView({ block: "nearest", inline: "nearest" });
               }
             }}
             onScroll={(e) => {
@@ -628,15 +653,20 @@ export function Workbench({
               <thead>
                 <tr>
                   <th scope="col" className="name-col">姓名</th>
-                  <th scope="col" className="status-target-col">学生状况 / 目标时间</th>
+                  <th scope="col" className="status-target-col" aria-sort={directionFor("status") ?? directionFor("target")}>
+                    <div className="status-target-sort">{sortButton("status")}<span aria-hidden="true">/</span>{sortButton("target")}</div>
+                  </th>
                   <th scope="col" className="major-col">专业</th>
-                  <th scope="col" className="contract-col">合同项目</th>
-                  {workbenchChoiceFields(f.phase).map(({ key, label }) => (
+                  <th scope="col" className="contract-col" aria-sort={directionFor("project")}>{sortButton("project")}</th>
+                  {workbenchChoiceFields(f.phase).map(({ key, label }) => key === "risk" ? (
                     <th key={key} scope="col" className="choice-col">{label}</th>
+                  ) : (
+                    <th key={key} scope="col" className={"choice-col" + (key === "progress" ? " progress-sort-col" : "")}
+                      aria-sort={directionFor(key)}>{sortButton(key, label)}</th>
                   ))}
                   {completed && <th scope="col" className="closure-col">完成情况</th>}
                   <th scope="col">最新跟进</th>
-                  <th scope="col" className="updated-col" aria-label="最近更新" title="最近更新（月/日）">更新</th>
+                  <th scope="col" className="updated-col" aria-label="更新时间" aria-sort={directionFor("updated")}>{sortButton("updated", "更新")}</th>
                 </tr>
               </thead>
               <ServiceTableBody key={f.phase} rows={rows} restoringScroll={scrollPositionRef.current.top > 0}
@@ -757,22 +787,12 @@ export function Students({ q, search, page, setPage, sort, setSort }: {
                 <tr>
                   {studentColumns.map(([field, label]) => {
                     const direction = activeSort?.field === field ? activeSort.direction : undefined;
-                    const next = direction === "ascending" ? "descending" : "ascending";
-                    const Icon = direction === "ascending" ? ChevronUp : direction === "descending" ? ChevronDown : ChevronsUpDown;
                     return (
                       <th key={field} scope="col" aria-sort={direction}>
-                        <button
-                          type="button"
-                          className="student-sort"
-                          title={`按${label}${next === "ascending" ? "升序" : "降序"}排列`}
-                          onClick={() => {
-                            setSort({ field, direction: next });
-                            setPage(1);
-                          }}
-                        >
-                          {label}
-                          <Icon aria-hidden="true" />
-                        </button>
+                        <SortButton label={label} direction={direction} onSort={(next) => {
+                          setSort({ field, direction: next });
+                          setPage(1);
+                        }} />
                       </th>
                     );
                   })}

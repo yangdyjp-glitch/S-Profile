@@ -306,6 +306,12 @@ async function run() {
     targets: ["2028-04"],
   });
   assert.equal((await svc()).phase, "applying");
+  const applyingList = await call("exports", "POST", { scope: "filtered", filters: {
+    phase: "applying", progress: "未开始", sort: "progress", sortDirection: "ascending",
+  } });
+  assert.deepEqual(applyingList.services.map((s) => s.id), [vid]);
+  assert.equal(applyingList.filters.sort, "updated");
+  assert.equal(applyingList.filters.sortDirection, "descending");
   await act("return");
   const returned = await svc();
   assert.equal(returned.phase, "progress");
@@ -414,6 +420,43 @@ async function run() {
   assert.equal((await svc()).status, "暂停中");
   await act("resume", { status: "当期申请" });
   assert.deepEqual((await svc()).targets, ["2029-04"]);
+  const catalogId = (kind, name) => w.catalogs.find((c) => c.kind === kind && c.name === name).id;
+  const createSortExample = (suffix, manager, details) => call("services", "POST", {
+    student: { ...student, name: "排序样本" + suffix, manager: manager ? catalogId("manager", manager) : "" },
+    service: { ...service, ...details },
+  });
+  const { id: early } = await createSortExample("周", "刘靓", {
+    teacher: catalogId("teacher", "吴怡丹"), projects: [catalogId("project", "修士"), catalogId("project", "博士")],
+    targets: ["2027-10", "2027-04"], status: "未开始", progress: "研究计划",
+  });
+  const { id: late } = await createSortExample("安", "崔佳", {
+    teacher: catalogId("teacher", "朱俊杰"), projects: [catalogId("project", "博士")],
+    targets: ["2028-04"], status: "当期申请", progress: "发邮件中",
+  });
+  const sortedExamples = async (sort, sortDirection) => {
+    const data = await call("exports", "POST", { scope: "filtered", filters: { phase: "progress", q: "排序样本", sort, sortDirection } });
+    return data.services;
+  };
+  const serviceIds = (rows) => rows.map((s) => s.id);
+  for (const [field, order] of [
+    ["status", [early, late]], ["target", [early, late]], ["project", [late, early]],
+    ["teacher", [early, late]], ["manager", [late, early]], ["progress", [late, early]],
+    ["name", [late, early]],
+  ]) {
+    assert.deepEqual(serviceIds(await sortedExamples(field, "ascending")), order, field);
+    assert.deepEqual(serviceIds(await sortedExamples(field, "descending")), [...order].reverse(), field);
+  }
+  for (const direction of ["ascending", "descending", undefined]) {
+    const times = (await sortedExamples("updated", direction)).map((s) => s.updatedAt);
+    assert.deepEqual(times, direction === "ascending" ? times.toSorted() : times.toSorted().reverse());
+  }
+  assert.deepEqual(serviceIds(await sortedExamples("target")), [early, late]);
+  const unassigned = await createSortExample("白", "", { teacher: "" });
+  for (const field of ["teacher", "manager"]) {
+    for (const direction of ["ascending", "descending"]) {
+      assert.equal((await sortedExamples(field, direction)).at(-1).id, unassigned.id);
+    }
+  }
   const long = "=原样公式文本 " + "文字🌿".repeat(10000) + "\n".repeat(280);
   const first = await call("students/" + sid + "/entries", "POST", {
     kind: "progress",
@@ -614,7 +657,7 @@ async function run() {
   assert.equal(exp.imports.length, 1);
   const filtered = await call("exports", "POST", {
     scope: "filtered",
-    filters: { phase: "progress", q: "年度记录" },
+    filters: { phase: "progress", q: "年度记录", sort: "target", sortDirection: "descending" },
   });
   assert.equal(filtered.services.length, 2);
   const frontendFiles = await readdir(clientDirectory, { recursive: true }),
@@ -652,6 +695,11 @@ async function run() {
     assert.equal(archives.find((row) => row?.[1] === "独立历史档案")[languageCol], "暂无语言成绩");
     const filteredReport = await renderReport(filtered);
     assert.equal(filteredReport.getWorksheet("当前筛选").getCell("B2").text, "验收新姓名");
+    assert.equal(filteredReport.getWorksheet("当前筛选").getCell("A2").text, vid);
+    assert.equal(filteredReport.getWorksheet("当前筛选").getCell("A3").text, second.id);
+    const filterSummary = new Map(filteredReport.getWorksheet("筛选条件").getSheetValues().slice(2).map((row) => row.slice(1)));
+    assert.equal(filterSummary.get("排序"), "目标时间");
+    assert.equal(filterSummary.get("排序方向"), "降序");
     const roster = output.getWorksheet("业务名册").getSheetValues();
     assert.ok(deletedItems.every((item) => !roster.some((r) => r?.[1] === item.id)));
     assert.ok(roster.some((r) => r?.[1] === replacement.id));

@@ -1,5 +1,6 @@
 import ExcelJS from "exceljs/dist/exceljs.min.js";
 import type { ExportData } from "./exports";
+import { serviceSortLabels } from "./list";
 import {
   closureKinds,
   currentClosure,
@@ -229,20 +230,20 @@ function workbook(data: ExportData) {
             {
               q: "搜索",
               sort: "排序",
+              sortDirection: "排序方向",
               intake: "入学目标",
               closure: "完成情况",
             } as Record<string, string>
           )[k] ||
             labels[k] ||
             k,
-          cat(v) ||
+          k === "sort" ? serviceSortLabels[data.filters.sort] : cat(v) ||
             phases[v as keyof typeof phases] ||
             closureKinds[v as keyof typeof closureKinds] ||
             (
               {
-                updated: "最近更新",
-                name: "姓名",
-                target: "入学目标",
+                ascending: "升序",
+                descending: "降序",
                 none: "待分配",
               } as Record<string, string>
             )[v] ||

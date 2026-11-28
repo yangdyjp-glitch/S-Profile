@@ -1005,12 +1005,21 @@ summary:hover {
 .services-table .name-col {
   width: var(--name-column-width);
 }
-.services-table td:not(:first-child) {
+.services-table :is(th, td):not(:first-child) {
   scroll-margin-inline-start: var(--name-column-width);
 }
 .services-table .status-target-col {
   box-sizing: content-box;
-  width: 9ic;
+  width: 11.5ic;
+}
+.status-target-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.2em;
+  white-space: nowrap;
+}
+.status-target-sort .table-sort {
+  width: auto;
 }
 .services-table .major-col {
   width: 11%;
@@ -1026,9 +1035,12 @@ summary:hover {
   box-sizing: content-box;
   width: calc(4ic + 2 * var(--choice-padding));
 }
+.services-table .progress-sort-col {
+  width: 5ic;
+}
 .services-table .updated-col {
   --table-cell-padding: 6px 4px;
-  width: calc(max(5ch, 2ic) + 8px);
+  width: calc(max(5ch, 3ic) + 8px);
   text-align: center;
   white-space: nowrap;
 }
@@ -1171,7 +1183,7 @@ summary:hover {
   box-sizing: content-box;
   width: var(--student-name-width);
 }
-.student-sort {
+.table-sort {
   display: flex;
   align-items: center;
   gap: 0.2em;
@@ -1182,13 +1194,13 @@ summary:hover {
   color: inherit;
   text-align: start;
 }
-.student-sort svg {
+.table-sort svg {
   width: 0.8em;
   height: 0.8em;
   flex: none;
 }
-.students-table th[aria-sort] .student-sort,
-.student-sort:is(:hover, :focus-visible) {
+.table-sort[aria-pressed="true"],
+.table-sort:is(:hover, :focus-visible) {
   color: var(--primary);
 }
 .rewards-toolbar select {

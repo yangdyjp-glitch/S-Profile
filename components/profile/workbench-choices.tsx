@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { flushSync } from "react-dom";
+import { showsWorkbenchProgress } from "../../lib/profile/list";
 import { catalogOptionLabel, choices, requiresActiveStatus, type Catalog, type Phase, type Service, type Student } from "../../lib/profile/model";
 import { ApiError, type useSite } from "./ui";
 
@@ -15,9 +16,6 @@ const fields = [
 ] as const;
 type Choice = (typeof fields)[number];
 
-export function showsWorkbenchProgress(phase: Phase) {
-  return phase === "progress" || phase === "paused";
-}
 export function workbenchChoiceFields(phase: Phase): readonly Choice[] {
   return showsWorkbenchProgress(phase) ? fields : staffFields;
 }
