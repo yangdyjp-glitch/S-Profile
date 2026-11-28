@@ -957,7 +957,6 @@ summary:hover {
   --name-edit-width: 22px;
   --name-edit-gap: 2px;
   --name-column-width: calc(var(--student-name-width) + var(--name-edit-width) + var(--name-edit-gap) + 2 * var(--cell-inset));
-  --choice-arrow-space: 1.125rem;
   --choice-padding: 0.1875rem;
   min-width: 64rem;
 }
@@ -988,7 +987,7 @@ summary:hover {
 .services-table .progress-col,
 .services-table .risk-col {
   box-sizing: content-box;
-  width: calc(4ic + var(--choice-arrow-space) + 2 * var(--choice-padding));
+  width: calc(4ic + 2 * var(--choice-padding));
 }
 .services-table .updated-col {
   --table-cell-padding: 6px 4px;
@@ -1041,16 +1040,10 @@ summary:hover {
 }
 .cell-choice {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) var(--choice-arrow-space);
+  display: flex;
   align-items: center;
   padding: 2px var(--choice-padding);
   overflow-wrap: anywhere;
-}
-.cell-choice > svg {
-  justify-self: end;
-  width: 0.8125rem;
-  height: 0.8125rem;
 }
 .progress-choice {
   border-radius: 6px;
