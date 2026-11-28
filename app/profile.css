@@ -1033,7 +1033,10 @@ summary:hover {
 }
 .services-table .choice-col {
   box-sizing: content-box;
-  width: calc(4ic + 2 * var(--choice-padding));
+  width: calc(var(--choice-text-width, 4ic) + 2 * var(--choice-padding));
+}
+.services-table .risk-col {
+  --choice-text-width: 6ic;
 }
 .services-table .progress-sort-col {
   width: 5ic;
@@ -1095,6 +1098,8 @@ summary:hover {
   overflow-wrap: anywhere;
 }
 .progress-choice {
+  justify-content: center;
+  text-align: center;
   border-radius: 6px;
   background-color: var(--neutral);
   color: var(--muted);

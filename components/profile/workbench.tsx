@@ -659,7 +659,7 @@ export function Workbench({
                   <th scope="col" className="major-col">专业</th>
                   <th scope="col" className="contract-col" aria-sort={directionFor("project")}>{sortButton("project")}</th>
                   {workbenchChoiceFields(f.phase).map(({ key, label }) => key === "risk" ? (
-                    <th key={key} scope="col" className="choice-col">{label}</th>
+                    <th key={key} scope="col" className="choice-col risk-col">{label}</th>
                   ) : (
                     <th key={key} scope="col" className={"choice-col" + (key === "progress" ? " progress-sort-col" : "")}
                       aria-sort={directionFor(key)}>{sortButton(key, label)}</th>
