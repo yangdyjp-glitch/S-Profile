@@ -407,25 +407,13 @@ function StageActions({ s }: { s: Service }) {
     </div>
   );
 }
-function ServicePanels({ s }: { s: Service }) {
+function ServiceHistoryPanels({ s }: { s: Service }) {
   const { w } = useSite();
   const cat = (id: string, fallback?: string) => labelOf(w.catalogs, id, fallback);
   const closure = currentClosure(s);
+  if (!closure && !s.pauses.length) return null;
   return (
-    <div className="detail-grid service-panels">
-      <section className="panel service-summary-row progress-summary" aria-labelledby="work-heading">
-        <h2 id="work-heading">工作进度</h2>
-        <Facts
-          values={[
-            editableFact(s.phase === "completed" ? "结束前状况" : "学生状况", { service: s, field: "status" }),
-            editableFact("材料准备", { service: s, field: "collection" }),
-            editableFact("材料制作", { service: s, field: "production" }),
-            editableFact("申请进度", { service: s, field: "progress" }),
-            editableFact("申请风险", { service: s, field: "risk" }),
-            editableFact("学校出愿信息", { service: s, field: "publication" }),
-          ]}
-        />
-      </section>
+    <div className="detail-grid service-history-panels">
       {closure && (
         <Section title={"完成情况 · " + closureKinds[closure.kind]}>
           <Facts
@@ -583,20 +571,37 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
               </label>
             )}
           </div>
-          {selected && s && <Facts values={[
-            editableFact("合同项目", { service: s, field: "projects" }),
-            editableFact("甲方渠道", { service: s, field: "channel" }),
-            editableFact("原合同入学目标", { service: s, field: "original" }),
-            editableFact("当前入学目标", { service: s, field: "targets" }),
-            editableFact("教务老师", { service: s, field: "teacher" }),
-            ["阶段操作", <StageActions s={s} />],
-          ]} />}
+          {s && (
+            <>
+              <Facts values={[
+                editableFact("合同项目", { service: s, field: "projects" }),
+                editableFact("甲方渠道", { service: s, field: "channel" }),
+                editableFact("原合同入学目标", { service: s, field: "original" }),
+                editableFact("当前入学目标", { service: s, field: "targets" }),
+                editableFact("教务老师", { service: s, field: "teacher" }),
+              ]} />
+              <StageActions s={s} />
+            </>
+          )}
           {!choices.length && <span className="subtle">暂无服务</span>}
           {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
         </section>
-        {s && <ServicePanels s={s} />}
+        {s && (
+          <section className="panel service-summary-row progress-summary" aria-labelledby="work-heading">
+            <h2 id="work-heading">工作进度</h2>
+            <Facts values={[
+              editableFact(s.phase === "completed" ? "结束前状况" : "学生状况", { service: s, field: "status" }),
+              editableFact("材料准备", { service: s, field: "collection" }),
+              editableFact("材料制作", { service: s, field: "production" }),
+              editableFact("申请进度", { service: s, field: "progress" }),
+              editableFact("申请风险", { service: s, field: "risk" }),
+              editableFact("学校出愿信息", { service: s, field: "publication" }),
+            ]} />
+          </section>
+        )}
       </div>
       <div className="overview-records stack">
+        {s && <ServiceHistoryPanels s={s} />}
         <Timeline key={st.id} st={st} kind="progress" />
         <Section title="申请与出愿">
           <div className={s ? "detail-grid application-grid" : undefined}>
