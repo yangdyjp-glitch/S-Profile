@@ -98,7 +98,9 @@ export function DetailValue(props: Source & { label: string; describedBy?: strin
     let content: ReactNode = service.major || "待补";
     if (field === "projects") content = <ProjectNames names={service.projects.map((p) => labelOf(w.catalogs, p))} fallback="合同项目待补" />;
     if (field === "original" || field === "targets") content = service[field].length
-      ? service[field].map((month, index) => <span key={month} className="intake-month">{index > 0 && "、"}{intakeLabel(month)}</span>)
+      ? service[field].map((month, index, months) => (
+        <span key={month} className="intake-month">{intakeLabel(month)}{index + 1 < months.length && "、"}</span>
+      ))
       : "待补";
     return editButton(content, (dismiss) => <ServiceEditor old={service} field={field} onDismiss={dismiss} />);
   }

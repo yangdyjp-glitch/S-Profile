@@ -397,16 +397,18 @@ function ServiceActions({ s }: { s: Service }) {
           ? ["return", "close"]
           : ["reopen"];
   return (
-    <div className="actions">
-      <button className="btn" onClick={() => open("服务进度", <ServiceEditor old={s} />, true)}>
+    <div className="service-actions">
+      <button type="button" className="btn" onClick={() => open("服务进度", <ServiceEditor old={s} />, true)}>
         服务进度
       </button>
-      {ops.map((action) => (
-        <button className="btn" key={action}
-          onClick={() => open(actions[action], <ActionEditor s={s} action={action} />)}>
-          {actions[action]}
-        </button>
-      ))}
+      <div className="stage-actions" role="group" aria-label="服务阶段操作">
+        {ops.map((action) => (
+          <button type="button" key={action}
+            onClick={() => open(actions[action], <ActionEditor s={s} action={action} />)}>
+            {actions[action]}
+          </button>
+        ))}
+      </div>
     </div>
   );
 }
@@ -416,7 +418,7 @@ function ServicePanels({ s }: { s: Service }) {
   const closure = currentClosure(s);
   return (
     <div className="detail-grid service-panels">
-      <section className="panel progress-summary" aria-labelledby="work-heading">
+      <section className="panel service-summary-row progress-summary" aria-labelledby="work-heading">
         <h2 id="work-heading">工作进度</h2>
         <Facts
           values={[
@@ -555,40 +557,42 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
           editableFact("语言情况", { student: st, field: "language" }),
         ]} />
       </section>
-      <section className="detail-summary" aria-label="当前服务">
-        <div className="current-service-heading">
-          <h2>当前服务</h2>
-          {s && <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>}
-          {(choices.length > 1 || (choices.length > 0 && !selected)) && (
-            <label className="btn service-switch">
-              <span aria-hidden="true">{s ? "切换服务" : "请选择服务"}（{choices.length} 份）</span>
-              <ChevronDown size={14} aria-hidden="true" />
-              <select aria-label="切换服务" value={selectedId || ""}
-                onChange={(e) => go(studentPath(id, e.target.value))}>
-                {!s && <option value="" disabled>请选择该生的服务</option>}
-                {choices.map((choice) => (
-                  <option key={choice.service.id} value={choice.service.id}>
-                    {choice.label}{choices.some((other) => other !== choice && other.label === choice.label)
-                      ? " · " + choice.service.id : ""}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-        </div>
-        {selected && s && <Facts values={[
-          editableFact("合同项目", { service: s, field: "projects" }),
-          editableFact("甲方渠道", { service: s, field: "channel" }),
-          editableFact("原合同入学目标", { service: s, field: "original" }),
-          editableFact("当前入学目标", { service: s, field: "targets" }),
-          editableFact("教务老师", { service: s, field: "teacher" }),
-        ]} />}
-        {!choices.length && <span className="subtle">暂无服务</span>}
-        {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
-        {s && <ServiceActions s={s} />}
-      </section>
-      <div className="overview-records stack">
+      <div className="service-overview">
+        <section className="panel service-summary-row detail-summary" aria-label="当前服务">
+          <div className="current-service-heading">
+            <h2>当前服务</h2>
+            {s && <span className={"stage-pill " + s.phase}>{phases[s.phase]}</span>}
+            {(choices.length > 1 || (choices.length > 0 && !selected)) && (
+              <label className="btn service-switch">
+                <span aria-hidden="true">{s ? "切换服务" : "请选择服务"}（{choices.length} 份）</span>
+                <ChevronDown size={14} aria-hidden="true" />
+                <select aria-label="切换服务" value={selectedId || ""}
+                  onChange={(e) => go(studentPath(id, e.target.value))}>
+                  {!s && <option value="" disabled>请选择该生的服务</option>}
+                  {choices.map((choice) => (
+                    <option key={choice.service.id} value={choice.service.id}>
+                      {choice.label}{choices.some((other) => other !== choice && other.label === choice.label)
+                        ? " · " + choice.service.id : ""}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
+          </div>
+          {selected && s && <Facts values={[
+            editableFact("合同项目", { service: s, field: "projects" }),
+            editableFact("甲方渠道", { service: s, field: "channel" }),
+            editableFact("原合同入学目标", { service: s, field: "original" }),
+            editableFact("当前入学目标", { service: s, field: "targets" }),
+            editableFact("教务老师", { service: s, field: "teacher" }),
+          ]} />}
+          {!choices.length && <span className="subtle">暂无服务</span>}
+          {serviceId && !s && <small role="status">这份服务不在该生档案中。</small>}
+          {s && <ServiceActions s={s} />}
+        </section>
         {s && <ServicePanels s={s} />}
+      </div>
+      <div className="overview-records stack">
         <Timeline key={st.id} st={st} kind="progress" />
         <Section title="申请与出愿">
           <div className={s ? "detail-grid application-grid" : undefined}>

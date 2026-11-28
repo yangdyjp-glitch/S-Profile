@@ -793,8 +793,7 @@ summary:hover {
   font-weight: 700;
   line-height: 1;
 }
-.panel,
-.detail-summary {
+.panel {
   min-width: 0;
   background: white;
   border-radius: var(--card-radius);
@@ -1375,14 +1374,11 @@ summary:hover {
   border-color: var(--primary);
   font-weight: 680;
 }
-.detail-summary {
-  padding: 16px 19px;
-  margin-bottom: 17px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  flex-wrap: wrap;
+.service-overview {
+  container: service-overview / inline-size;
+  display: grid;
+  gap: 1rem;
+  margin-bottom: 1.1rem;
 }
 .current-service-heading,
 .record-title {
@@ -1472,6 +1468,10 @@ summary:hover {
 }
 .service-switch {
   position: relative;
+  max-width: 100%;
+}
+.service-switch > span {
+  white-space: normal;
 }
 .service-switch select {
   position: absolute;
@@ -1485,47 +1485,96 @@ summary:hover {
   outline: 2px solid var(--primary);
   outline-offset: 2px;
 }
-.detail-summary .facts {
-  flex: 1 1 37rem;
-  min-width: 0;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) repeat(2, minmax(0, 1.4fr)) minmax(0, 0.8fr);
-  padding: 0;
-  column-gap: 12px;
+.intake-month,
+.detail-summary button.detail-field-value > span {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
 }
 .intake-month {
-  display: inline-block;
   white-space: nowrap;
-}
-.service-panels {
-  container-type: inline-size;
 }
 .service-panels > .panel:first-child,
 .service-panels > .panel:nth-child(2):last-child {
   grid-column: 1 / -1;
 }
-.progress-summary {
+.service-summary-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  align-items: center;
-  gap: 14px;
-  padding: 16px 20px;
-}
-.progress-summary .facts {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  align-items: center;
+  gap: 10px 12px;
+  padding: 12px clamp(12px, 1.5cqi, 20px);
+}
+.service-summary-row > .facts {
+  grid-column: 1 / -1;
+  grid-template-columns: subgrid;
+  column-gap: inherit;
+  row-gap: 12px;
   padding: 0;
 }
-@container (min-width: 28rem) {
-  .progress-summary .facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.progress-summary > h2,
+.detail-summary > :is(.subtle, [role="status"]) {
+  grid-column: 1 / -1;
 }
-@container (min-width: 40rem) {
-  .progress-summary .facts { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+.service-actions {
+  display: contents;
 }
-@container (min-width: 52rem) {
-  .progress-summary {
-    grid-template-columns: auto minmax(0, 1fr);
-    column-gap: 1.25rem;
+.service-actions > .btn {
+  grid-area: 2 / 1;
+  justify-self: start;
+}
+.stage-actions {
+  grid-area: 1 / 2 / span 2;
+  justify-self: end;
+  display: grid;
+  min-width: 4.75rem;
+  overflow: hidden;
+  background: var(--tint);
+  border: 1px solid var(--line);
+  border-radius: var(--control-radius);
+}
+.stage-actions button {
+  min-height: 24px;
+  padding: 2px 9px;
+  border: 0;
+  background: transparent;
+  color: var(--deep);
+  font-size: 0.8125rem;
+  line-height: 1.3;
+  white-space: nowrap;
+}
+.stage-actions button + button {
+  border-top: 1px solid var(--line);
+}
+.stage-actions button:is(:hover, :focus-visible) {
+  background: var(--primary);
+  color: white;
+  outline-offset: -2px;
+}
+@container service-overview (min-width: 32rem) {
+  .service-summary-row { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .service-actions {
+    display: flex;
+    grid-column: 2 / -1;
+    grid-row: 1;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
   }
+}
+@container service-overview (min-width: 46rem) {
+  .service-summary-row { grid-template-columns: repeat(6, minmax(0, 1fr)); }
+  .current-service-heading { grid-column: 1 / span 3; }
+  .service-actions { grid-column: 4 / -1; }
+}
+@container service-overview (min-width: 60rem) {
+  .service-summary-row {
+    grid-template-columns: 9.5rem repeat(5, minmax(0, 1fr)) minmax(11.75rem, 1fr);
+  }
+  .current-service-heading, .progress-summary > h2 { grid-area: 1 / 1; }
+  .detail-summary > .facts { grid-area: 1 / 2 / auto / -2; }
+  .progress-summary > .facts, .detail-summary > :is(.subtle, [role="status"]) { grid-area: 1 / 2 / auto / -1; }
+  .service-actions { grid-column: -2 / -1; }
 }
 .detail-history h2 button {
   display: flex;
@@ -2163,13 +2212,6 @@ summary:hover {
   .table-scroll .data-table th {
     padding: var(--table-cell-padding, 10px 12px);
   }
-  .detail-summary {
-    padding: 12px;
-  }
-  .detail-summary .facts {
-    flex-basis: 100%;
-    grid-template-columns: repeat(auto-fit, minmax(min(8rem, 100%), 1fr));
-  }
   .unique {
     max-width: 100%;
   }
@@ -2184,7 +2226,7 @@ summary:hover {
   }
 }
 @media (pointer: coarse) {
-  .row-action {
+  .row-action, .stage-actions button {
     min-height: 36px;
   }
 }
