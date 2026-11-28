@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { passwordLength, phases } from "../../lib/profile/model";
+import { profilePath } from "../../lib/profile/portal";
 import { Brand, ErrorBox, request } from "./ui";
 
 export function Login({
@@ -90,7 +91,7 @@ export function Login({
       <main className="login-main">
         <div className="login-feature">
           <div className="campus-photo">
-            <img src="/campus.webp" alt="秋日银杏环绕的大学校园与钟楼" />
+            <img src={profilePath("/campus.webp")} alt="秋日银杏环绕的大学校园与钟楼" />
             <div className="photo-shade" />
           </div>
           <div className="feature-copy">

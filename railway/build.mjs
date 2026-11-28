@@ -6,6 +6,7 @@ import { build } from "vite";
 
 await build({
   configFile: false,
+  base: "./",
   root: resolve("railway"),
   publicDir: resolve("public"),
   plugins: [react()],

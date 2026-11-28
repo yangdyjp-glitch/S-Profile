@@ -8,6 +8,8 @@ import { Hono } from "hono";
 import { compress } from "hono/compress";
 import { api } from "../dist/railway/server/api.mjs";
 import { openStorage } from "./storage.mjs";
+import { readTyai, oldEntry } from "./tyai-assertion.mjs";
+import { profileIdentity } from "./tyai-users.mjs";
 
 export async function createRailwayApp({ directory, origin, secret, ownerDigest, databaseUrl }) {
   if (!directory || !secret || secret.length < 32) {
@@ -20,15 +22,35 @@ export async function createRailwayApp({ directory, origin, secret, ownerDigest,
   const storage = await openStorage(directory, databaseUrl);
   const bindings = { DB: storage.DB, BUCKET: storage.BUCKET, BETTER_AUTH_SECRET: secret };
   const app = new Hono();
+  app.use("*", async (c, next) => {
+    if(c.req.path==="/healthz")return next();
+    try {
+      const url=new URL(c.req.url);
+      const claim=readTyai(c.req.header("x-tyai-identity"),"s-profile",c.req.method,url.pathname+url.search);
+      if(url.pathname==="/api/tyai/identities"){
+        if(claim?.kind!=="directory"&&claim?.kind!=="provision")return c.json({error:"需要平台授权"},403);
+        return c.json(await profileIdentity(storage.DB,claim));
+      }
+      if(claim){
+        if(claim.kind!=="user")return c.json({error:"请求用途无效"},403);
+        c.set("tyai",claim);
+      } else if(process.env.TYAI_ONLY==="1"){
+        if(c.req.method==="GET"&&!url.pathname.startsWith("/api/"))return c.redirect(oldEntry("s-profile",url.pathname+url.search),302);
+        return c.json({error:"请通过 TYAI 登录"},401);
+      }
+    } catch(error){ if(error.status)return c.json({error:error.message},error.status);throw error; }
+    return next();
+  });
   app.get("/healthz", async (c) => {
     await storage.ready();
     return c.json({ status: "ok", database: storage.backend }, 200, { "Cache-Control": "no-store" });
   });
   const compressData = compress({ threshold: 1500, contentTypeFilter: /^application\/json\b/ });
   app.use("/api/*", (c, next) => /^\/api\/(?:auth|setup)\//.test(c.req.path) ? next() : compressData(c, next));
-  app.all("/api/*", (c) => {
+  app.all("/api/*", async (c) => {
     const req = c.req.raw;
-    const url = new URL(base);
+    const claim=c.get("tyai");
+    const url = new URL(claim ? process.env.TYAI_ORIGIN : base);
     const incoming = new URL(req.url);
     url.pathname = incoming.pathname;
     url.search = incoming.search;
@@ -50,7 +72,9 @@ export async function createRailwayApp({ directory, origin, secret, ownerDigest,
       body: req.method === "GET" || req.method === "HEAD" ? undefined : req.body,
       duplex: "half",
     });
-    return api(request, bindings, isOwner);
+    if(!claim)return api(request, bindings, isOwner);
+    try { return api(request,bindings,false,await profileIdentity(storage.DB,claim)); }
+    catch(error){if(error.status)return c.json({error:error.message},error.status);throw error;}
   });
   app.use("*", async (c, next) => {
     await next();

@@ -24,6 +24,8 @@ import {
   type Kind,
   type Workspace,
 } from "../../lib/profile/model";
+import { openTyaiLogin, profilePath, usesTyai } from "../../lib/profile/portal";
+
 export type Values = Record<string, any>;
 export type View = { title: string; node: ReactNode; wide?: boolean; anchor?: HTMLButtonElement; onCancel?: () => void };
 export class ApiError extends Error {
@@ -55,7 +57,7 @@ export async function request<T = any>(
   if (ownerSetupKey && (url.split("?")[0] === "access" || url.startsWith("setup/"))) {
     headers.set("X-S-Profile-Setup", ownerSetupKey);
   }
-  const r = await fetch("/api/" + url, {
+  const r = await fetch(profilePath("/api/" + url), {
     method,
     credentials: "same-origin",
     cache: "no-store",
@@ -64,6 +66,7 @@ export async function request<T = any>(
   });
   const v: any = await r.json().catch(() => ({ message: "服务器响应异常" }));
   if (!r.ok) {
+    if (r.status === 401 && usesTyai()) openTyaiLogin();
     if (r.status === 401 && !url.startsWith("auth/"))
       window.dispatchEvent(new Event("profile-session-expired"));
     throw new ApiError(v.message || "请求未完成", r.status, v.latest);

@@ -17,7 +17,7 @@ import {
   upload,
 } from "./imports";
 import { exportData } from "./exports";
-import type { Catalog } from "./model";
+import type { Account, Catalog } from "./model";
 import { all, catalogItem, commit, history, isUniqueViolation, one, snapshot, workspaceUpdate, type Input } from "./store";
 import { Problem } from "./validation";
 
@@ -46,6 +46,7 @@ export async function api(
   request: Request,
   env: Cloudflare.Env,
   isSetupOwner?: boolean,
+  portalMember?: Account,
 ) {
   try {
     const url = new URL(request.url),
@@ -64,6 +65,8 @@ export async function api(
     )
       throw new Problem(403, "请求来源无效，请刷新后再试");
     const auth = authentication(env, url.origin);
+    if (portalMember && (section === "auth" || section === "setup" || (section === "admin" && key === "users")))
+      throw new Problem(403, "请在 TYAI 管理账号和密码");
     if (section === "auth") {
       const path = p.slice(1).join("/");
       if (
@@ -114,7 +117,7 @@ export async function api(
       return json(
         await bootstrap(request, env, auth, key, await body(), isSetupOwner),
       );
-    const actor = await member(auth, request.headers);
+    const actor = portalMember || await member(auth, request.headers);
     if (section === "access" && method === "GET")
       return json({
         user: actor,

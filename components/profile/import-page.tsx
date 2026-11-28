@@ -10,6 +10,7 @@ import {
   timeLabel,
 } from "../../lib/profile/model";
 import type { Batch, Source } from "../../lib/profile/excel-model";
+import { openTyaiLogin, profilePath, usesTyai } from "../../lib/profile/portal";
 import {
   Empty,
   ErrorBox,
@@ -556,7 +557,7 @@ export default function ImportPage() {
     setBusy("正在保存原工作簿…");
     setError("");
     try {
-      const r = await fetch("/api/imports", {
+      const r = await fetch(profilePath("/api/imports"), {
           method: "POST",
           headers: {
             "x-file-name": encodeURIComponent(file.name),
@@ -566,6 +567,7 @@ export default function ImportPage() {
           body: file,
         }),
         v = (await r.json()) as Values;
+      if (r.status === 401 && usesTyai()) openTyaiLogin();
       if (!r.ok) throw new Error(v.message || "上传失败");
       await process(v.id);
     } catch (e) {
@@ -644,7 +646,7 @@ export default function ImportPage() {
             {chosen && (
               <a
                 className="btn"
-                href={"/api/imports/" + chosen + "/original"}
+                href={profilePath("/api/imports/" + encodeURIComponent(chosen) + "/original")}
                 download
               >
                 <Download size={16} />

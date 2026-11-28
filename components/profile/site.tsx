@@ -3,6 +3,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } fro
 import {
   ChevronUp,
   ContactRound,
+  Download,
   FolderInput,
   KeyRound,
   LayoutDashboard,
@@ -20,6 +21,7 @@ import {
 } from "../../lib/profile/model";
 import { defaultFilters, type Filters } from "../../lib/profile/list";
 import type { StudentSort } from "../../lib/profile/student-list";
+import { logoutTyai, openTyaiLogin, usesTyai } from "../../lib/profile/portal";
 import { mergeWorkspace, type WorkspaceUpdate } from "../../lib/profile/sync";
 import { Accounts, CatalogPage } from "./admin";
 import { StudentDetail } from "./detail";
@@ -35,7 +37,7 @@ import {
   type View,
   type WorkspaceWrite,
 } from "./ui";
-import { Students, Workbench } from "./workbench";
+import { ExportDialog, Students, Workbench } from "./workbench";
 const adminImportsRoute = "admin/imports";
 const ImportPage = lazy(() => import("./import-page"));
 const RewardsPage = lazy(() => import("./rewards-page"));
@@ -168,6 +170,10 @@ export default function Site() {
     try {
       const a = await request<{ user: Account | null; canSetup: boolean; workspace?: WorkspaceUpdate }>("access?workspace=1");
       if (session.current !== generation) return;
+      if (!a.user && usesTyai()) {
+        openTyaiLogin();
+        return;
+      }
       setCan(a.canSetup);
       setUser(a.user);
       if (a.workspace) apply(a.workspace, null, generation);
@@ -186,6 +192,10 @@ export default function Site() {
         window.history.replaceState(window.history.state, "", "#" + adminImportsRoute);
       }
       const path = location.hash.slice(1) || "services";
+      if (path === "accounts" && usesTyai()) {
+        window.location.replace("/admin");
+        return;
+      }
       const section = path.split("/")[0];
       if (["services", "students", "rewards"].includes(section)) lastList = section;
       if (section === "student" || section === "service") {
@@ -239,6 +249,10 @@ export default function Site() {
     [w, user, refresh, write, open, close, go]);
   async function logout() {
     try {
+      if (usesTyai()) {
+        await logoutTyai();
+        return;
+      }
       await request("auth/sign-out", "POST", {});
       clear();
       go("services");
@@ -248,6 +262,8 @@ export default function Site() {
     }
   }
   if (checking && !user) return <Empty title="正在打开工作台" />;
+  if ((!user || !site) && usesTyai())
+    return <Empty title={error || "正在前往 TYAI 登录"} action={<a className="btn" href="/">返回 TYAI 工作台</a>} />;
   if (!user || !site)
     return <Login canSetup={canSetup} refresh={access} accessError={error} />;
   const [page, id, child, selectedServiceId] = route.split("/"),
@@ -315,15 +331,27 @@ export default function Site() {
             </button>
             {profile && (
               <div className="menu-pop">
+                {usesTyai() && (
+                  <>
+                    <button onClick={() => window.location.assign("/")}>
+                      <LayoutDashboard size={15} />
+                      TYAI 工作台
+                    </button>
+                    <button onClick={() => open("导出 Excel", <ExportDialog filters={filters} />)}>
+                      <Download size={15} />
+                      导出 Excel
+                    </button>
+                  </>
+                )}
                 {user.role === "admin" && (
                   <button onClick={() => go(adminImportsRoute)}>
                     <FolderInput size={15} />
                     管理后台
                   </button>
                 )}
-                <button onClick={() => open("修改自己的密码", <PasswordEditor />)}>
+                <button onClick={() => usesTyai() ? window.location.assign("/account") : open("修改自己的密码", <PasswordEditor />)}>
                   <KeyRound size={15} />
-                  修改密码
+                  {usesTyai() ? "个人账号" : "修改密码"}
                 </button>
                 <button onClick={logout}>
                   <LogOut size={15} />

@@ -153,7 +153,12 @@ async function run() {
     assert.equal(page.headers.get("cache-control"), "no-cache");
     const html = await page.text();
     assert.match(html, /S-Profile · 学生服务管理/);
-    for (const [, path] of html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)) {
+    const entries = Array.from(html.matchAll(/(?:src|href)="((?:\.\/|\/)?assets\/[^"]+)"/g), match => match[1]);
+    assert.ok(entries.some(entry => entry.endsWith(".js")), "The Railway HTML must reference its JavaScript bundle");
+    assert.ok(entries.some(entry => entry.endsWith(".css")), "The Railway HTML must reference its stylesheet");
+    for (const entry of entries) {
+      const path = new URL(entry, origin + "/").pathname;
+      assert.equal(new URL(entry, origin + "/s-profile/").pathname, "/s-profile" + path);
       const asset = await runtime.dispatchFetch(origin + path, { headers: { "Accept-Encoding": "br" } });
       assert.equal(asset.status, 200);
       assert.match(asset.headers.get("cache-control"), /immutable/);

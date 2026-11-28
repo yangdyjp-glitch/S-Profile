@@ -139,9 +139,7 @@ export function ExportDialog({ filters }: { filters: Filters }) {
     let worker: Worker | undefined;
     try {
       const data = await request("exports", "POST", { scope, filters });
-      const workerPath = new URL(exportWorkerUrl, window.location.origin)
-        .pathname;
-      worker = new Worker(workerPath, { type: "module" });
+      worker = new Worker(new URL(exportWorkerUrl, document.baseURI), { type: "module" });
       const buffer = await new Promise<ArrayBuffer>((resolve, reject) => {
         worker!.onmessage = (e) =>
           e.data.ok
