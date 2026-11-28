@@ -4,6 +4,8 @@ import {
   type Service,
   type Workspace,
 } from "./model";
+import { compareStudentNames } from "./student-list";
+export { compareStudentNames };
 export interface Filters {
   phase: Phase;
   q: string;
@@ -34,7 +36,6 @@ export const defaultFilters: Filters = {
   closure: "",
   sort: "updated",
 };
-export const compareStudentNames = new Intl.Collator("zh-CN").compare;
 export function serviceRows(w: Workspace, f: Filters): Service[] {
   const students = new Map(w.students.map((s) => [s.id, s])),
     term = f.q.toLowerCase().trim();

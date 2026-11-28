@@ -19,6 +19,7 @@ import {
   type Workspace,
 } from "../../lib/profile/model";
 import { defaultFilters, type Filters } from "../../lib/profile/list";
+import type { StudentSort } from "../../lib/profile/student-list";
 import { mergeWorkspace, type WorkspaceUpdate } from "../../lib/profile/sync";
 import { Accounts, CatalogPage } from "./admin";
 import { StudentDetail } from "./detail";
@@ -57,6 +58,7 @@ export default function Site() {
     [filters, setFilters] = useState<Filters>(defaultFilters),
     [studentQuery, setStudentQuery] = useState(""),
     [studentListPage, setStudentListPage] = useState(1),
+    [studentSort, setStudentSort] = useState<StudentSort | null>(null),
     [view, setView] = useState<View | null>(null),
     [toast, notice] = useState(""),
     [menu, setMenu] = useState(false),
@@ -157,6 +159,7 @@ export default function Site() {
     setFilters(defaultFilters);
     setStudentQuery("");
     setStudentListPage(1);
+    setStudentSort(null);
     serviceListScrollRef.current = { top: 0, left: 0 };
   }, []);
   const access = useCallback(async () => {
@@ -348,7 +351,11 @@ export default function Site() {
             ) : page === "services" ? (
               <Workbench filters={filters} setFilters={setFilters} scrollPositionRef={serviceListScrollRef} />
             ) : page === "students" ? (
-              <Students q={studentQuery} search={setStudentQuery} page={studentListPage} setPage={setStudentListPage} />
+              <Students
+                q={studentQuery} search={setStudentQuery}
+                page={studentListPage} setPage={setStudentListPage}
+                sort={studentSort} setSort={setStudentSort}
+              />
             ) : page === "service" && !legacyService ? (
               <Empty title="找不到这份服务" />
             ) : studentDetail ? (

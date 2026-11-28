@@ -8,6 +8,7 @@ import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
 import { mergeWorkspace } from "../lib/profile/sync.ts";
 import { languageStatus, upcomingIntakes } from "../lib/profile/model.ts";
+import { studentListRows } from "../lib/profile/student-list.ts";
 import { cleanStoredEntry, withoutRepeatedEntryDate } from "../lib/profile/entry-text.mjs";
 
 async function createSitesRuntime() {
@@ -48,6 +49,28 @@ assert.deepEqual(upcomingIntakes(new Date("2026-11-28T00:00:00+09:00")), [
 assert.equal(upcomingIntakes(new Date("2026-03-31T14:59:59Z"))[0], "2026-04");
 assert.equal(upcomingIntakes(new Date("2026-03-31T15:00:00Z"))[0], "2026-10");
 assert.equal(upcomingIntakes(new Date("2026-09-30T15:00:00Z"))[0], "2027-04");
+{
+  const students = [
+    { id: "c", name: "周同学", orderMonth: "2026-02", location: "日本", language: languageStatus({ toefl: "100" }, ""), managerName: "张老师", serviceCount: 10 },
+    { id: "a", name: "安同学", orderMonth: "2025-10", location: "中国", language: languageStatus({ toefl: "9" }, ""), managerName: "安老师", serviceCount: 2 },
+    { id: "b", name: "白同学", orderMonth: "", location: "", language: languageStatus({}, ""), managerName: "", serviceCount: 0 },
+  ];
+  const ids = (rows) => rows.map((row) => row.id).join("");
+  const sort = (field, direction, term = "") =>
+    ids(studentListRows(students, term, new Set(["a"]), { field, direction }));
+  for (const [field, ascending, descending] of [
+    ["name", "abc", "cba"], ["orderMonth", "acb", "cab"], ["location", "cab", "acb"],
+    ["language", "acb", "cab"], ["managerName", "acb", "cab"], ["serviceCount", "bac", "cab"],
+  ]) {
+    assert.equal(sort(field, "ascending"), ascending, field);
+    assert.equal(sort(field, "descending"), descending, field);
+  }
+  assert.equal(ids(studentListRows(students, "周", new Set(["a"]), null)), "ca");
+  assert.equal(sort("orderMonth", "ascending", "周"), "ac");
+  const tied = [{ ...students[0], id: "d" }, students[0], { ...students[1], serviceCount: 10 }];
+  assert.equal(ids(studentListRows(tied, "", new Set(), { field: "serviceCount", direction: "descending" })), "acd");
+  assert.equal(ids(students), "cab");
+}
 const railway = process.argv.includes("--railway");
 const runtime = railway
   ? await (await import("./test-railway-runtime.mjs")).createRailwayTestRuntime()

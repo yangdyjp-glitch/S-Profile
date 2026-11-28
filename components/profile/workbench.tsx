@@ -3,8 +3,11 @@ import { memo, startTransition, useCallback, useDeferredValue, useEffect, useLay
 import exportWorkerUrl from "../../lib/profile/export.worker.ts?worker&url";
 import {
   CheckCheck,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
+  ChevronUp,
+  ChevronsUpDown,
   CirclePause,
   CirclePlay,
   Download,
@@ -21,7 +24,6 @@ import {
   closureKinds,
   compareNewestEntry,
   currentClosure,
-  labelOf,
   languageStatus,
   phases,
   tokyoDay,
@@ -33,11 +35,11 @@ import {
   type Student,
 } from "../../lib/profile/model";
 import {
-  compareStudentNames,
   defaultFilters,
   serviceRows,
   type Filters,
 } from "../../lib/profile/list";
+import { studentColumns, studentListRows, studentNameOrder, type StudentSort } from "../../lib/profile/student-list";
 import { Empty, ErrorBox, Field, request, studentPath, useSite } from "./ui";
 import { ActionEditor, EntryEditor, SchoolEditor, ServiceEditor, StudentEditor, type EntryDraft, type ServiceListField } from "./editors";
 import { projectLevel, ProjectNames } from "./project-names";
@@ -678,33 +680,44 @@ export function Workbench({
     </>
   );
 }
-export function Students({ q, search, page, setPage }: {
+export function Students({ q, search, page, setPage, sort, setSort }: {
   q: string;
   search: (query: string) => void;
   page: number;
   setPage: (page: number) => void;
+  sort: StudentSort | null;
+  setSort: (next: StudentSort) => void;
 }) {
   const { w, go, open } = useSite();
-  const query = useDeferredValue(q);
-  const rows = useMemo(() => {
-    const term = query.trim().toLowerCase();
+  const term = useDeferredValue(q).trim().toLowerCase();
+  const entryMatches = useMemo(() => {
     const matches = new Set<string>();
     if (term) {
       for (const entry of w.entries) {
         if (!entry.voided && entry.body.toLowerCase().includes(term)) matches.add(entry.studentId);
       }
     }
-    const nameMatches = (name: string) => name.toLowerCase().includes(term);
-    return w.students.filter((s) => nameMatches(s.name) || matches.has(s.id))
-      .sort((a, b) => Number(nameMatches(b.name)) - Number(nameMatches(a.name)) ||
-        compareStudentNames(a.name, b.name) || a.id.localeCompare(b.id));
-  }, [w.students, w.entries, query]),
-    current = Math.min(page, Math.max(1, Math.ceil(rows.length / 24)));
-  const serviceCounts = useMemo(() => {
-    const result = new Map<string, number>();
-    for (const s of w.services) result.set(s.studentId, (result.get(s.studentId) || 0) + 1);
-    return result;
-  }, [w.services]);
+    return matches;
+  }, [w.entries, term]);
+  const students = useMemo(() => {
+    const managers = new Map(w.catalogs.filter((c) => c.kind === "manager").map((c) => [c.id, c.name]));
+    const counts = new Map<string, number>();
+    for (const service of w.services) {
+      counts.set(service.studentId, (counts.get(service.studentId) ?? 0) + 1);
+    }
+    return w.students.map((s) => ({
+      id: s.id,
+      name: s.name,
+      orderMonth: s.orderMonth || "",
+      location: s.location || "",
+      language: languageStatus(s, ""),
+      managerName: managers.get(s.manager) ?? "",
+      serviceCount: counts.get(s.id) ?? 0,
+    }));
+  }, [w.students, w.services, w.catalogs]);
+  const rows = useMemo(() => studentListRows(students, term, entryMatches, sort), [students, term, entryMatches, sort]);
+  const current = Math.min(page, Math.max(1, Math.ceil(rows.length / 24)));
+  const activeSort = sort ?? (term ? null : studentNameOrder);
   return (
     <>
       <PageHead
@@ -736,16 +749,27 @@ export function Students({ q, search, page, setPage }: {
             <table className="data-table sticky students-table">
               <thead>
                 <tr>
-                  {[
-                    "学生姓名",
-                    "首次签单",
-                    "所在地",
-                    "语言情况",
-                    "学管",
-                    "服务数",
-                  ].map((k) => (
-                    <th key={k}>{k}</th>
-                  ))}
+                  {studentColumns.map(([field, label]) => {
+                    const direction = activeSort?.field === field ? activeSort.direction : undefined;
+                    const next = direction === "ascending" ? "descending" : "ascending";
+                    const Icon = direction === "ascending" ? ChevronUp : direction === "descending" ? ChevronDown : ChevronsUpDown;
+                    return (
+                      <th key={field} scope="col" aria-sort={direction}>
+                        <button
+                          type="button"
+                          className="student-sort"
+                          title={`按${label}${next === "ascending" ? "升序" : "降序"}排列`}
+                          onClick={() => {
+                            setSort({ field, direction: next });
+                            setPage(1);
+                          }}
+                        >
+                          {label}
+                          <Icon aria-hidden="true" />
+                        </button>
+                      </th>
+                    );
+                  })}
                 </tr>
               </thead>
               <tbody>
@@ -762,11 +786,9 @@ export function Students({ q, search, page, setPage }: {
                     </td>
                     <td>{s.orderMonth || "待补"}</td>
                     <td>{s.location || "待补"}</td>
-                    <td>{languageStatus(s)}</td>
-                    <td>{labelOf(w.catalogs, s.manager, "学管待分配")}</td>
-                    <td>
-                      {serviceCounts.get(s.id) || 0}
-                    </td>
+                    <td>{s.language || "暂无语言成绩"}</td>
+                    <td>{s.managerName || "学管待分配"}</td>
+                    <td>{s.serviceCount}</td>
                   </tr>
                 ))}
               </tbody>

@@ -125,14 +125,14 @@ function isJlptGrade(value: unknown): value is string {
 export function hasLanguageScore(scores: LanguageResults) {
   return isJlptGrade(scores.jlpt) || englishExams.some((exam) => isExamScore(scores[exam]));
 }
-export function languageStatus(scores: LanguageResults) {
+export function languageStatus(scores: LanguageResults, emptyLabel = "暂无语言成绩") {
   const japanese = isJlptGrade(scores.jlpt) ? "JLPT " + scores.jlpt.trim() : "";
   const english = englishExams.flatMap((exam) => {
     const score = scores[exam];
     return isExamScore(score) ? [labels[exam] + " " + score.trim()] : [];
   });
   if (english.length) return [japanese || "无日语成绩", ...english].join("，");
-  return japanese ? "无英语成绩，" + japanese : "暂无语言成绩";
+  return japanese ? "无英语成绩，" + japanese : emptyLabel;
 }
 export interface Pause {
   from: Phase | "";
