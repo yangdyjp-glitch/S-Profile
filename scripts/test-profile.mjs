@@ -9,6 +9,7 @@ import { Miniflare } from "miniflare";
 import { mergeWorkspace } from "../lib/profile/sync.ts";
 import { languageStatus, upcomingIntakes } from "../lib/profile/model.ts";
 import { studentListRows } from "../lib/profile/student-list.ts";
+import "./test-statistics.mjs";
 import { cleanStoredEntry, withoutRepeatedEntryDate } from "../lib/profile/entry-text.mjs";
 
 async function createSitesRuntime() {

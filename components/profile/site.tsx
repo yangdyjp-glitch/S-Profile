@@ -1,6 +1,7 @@
 "use client";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ChartColumn,
   ChevronUp,
   ContactRound,
   Download,
@@ -41,9 +42,12 @@ import { ExportDialog, Students, Workbench } from "./workbench";
 const adminImportsRoute = "admin/imports";
 const ImportPage = lazy(() => import("./import-page"));
 const RewardsPage = lazy(() => import("./rewards-page"));
+const StatisticsPage = lazy(() => import("./statistics-page"));
+const detailSources = ["services", "students", "statistics", "rewards"];
 const nav = [
   { key: "services", name: "服务工作台", en: "Services", icon: LayoutDashboard },
   { key: "students", name: "学生档案", en: "Students", icon: UsersRound },
+  { key: "statistics", name: "数据统计", en: "Statistics", icon: ChartColumn },
   { key: "rewards", name: "奖励结算", en: "Rewards", icon: Wallet },
   { key: "catalogs", name: "业务名册", en: "Catalogs", icon: ContactRound },
   { key: "accounts", name: "账号管理", en: "Accounts", icon: ShieldCheck },
@@ -197,10 +201,10 @@ export default function Site() {
         return;
       }
       const section = path.split("/")[0];
-      if (["services", "students", "rewards"].includes(section)) lastList = section;
+      if (detailSources.includes(section)) lastList = section;
       if (section === "student" || section === "service") {
         const saved = window.history.state?.profileList;
-        if (["services", "students", "rewards"].includes(saved)) lastList = saved;
+        if (detailSources.includes(saved)) lastList = saved;
         else if (section === "service") lastList = "services";
         if (saved !== lastList) {
           window.history.replaceState({ ...window.history.state, profileList: lastList }, "");
@@ -393,6 +397,10 @@ export default function Site() {
                 serviceId={legacyService?.id || (child === "service" ? selectedServiceId : undefined)}
                 legacy={page === "service"}
               />
+            ) : page === "statistics" ? (
+              <Suspense fallback={<Empty title="正在打开数据统计" />}>
+                <StatisticsPage route={route} />
+              </Suspense>
             ) : page === "rewards" ? (
               <Suspense fallback={<Empty title="正在打开奖励结算" />}>
                 <RewardsPage />
