@@ -8,8 +8,9 @@ import {
   emptyApplication,
   emptyService,
   emptyStudent,
-  hasLanguageScore,
+  englishExams,
   labels,
+  languageScoreKeys,
   languageStatus,
   passwordLength,
   phases,
@@ -38,12 +39,20 @@ import {
   type Binder,
   type Values,
 } from "./ui";
+export function LanguageFields({ b }: { b: Binder }) {
+  return (
+    <fieldset className="language-fields wide-field">
+      <legend>语言情况</legend>
+      <output>{languageStatus(b.v)}</output>
+      <div className="form-grid">
+        <Select b={b} k="jlpt" items={choices.jlpt} placeholder="未填写" />
+        {englishExams.map((exam) => <Text key={exam} b={b} k={exam} type="number" />)}
+      </div>
+    </fieldset>
+  );
+}
 function StudentFields({ b, old }: { b: Binder; old?: Student }) {
   const req = (k: string) => !old?.missing?.includes(k);
-  const pendingScores = old && languageStatus(old) === "成绩明细待补" && !hasLanguageScore(b.v);
-  const declarations = pendingScores
-    ? choices.declaration.map((value) => [value, value === "已有成绩" ? "成绩明细待补" : value] as const)
-    : choices.declaration;
   return (
     <div className="form-grid">
       <Text b={b} k="name" required />
@@ -55,35 +64,21 @@ function StudentFields({ b, old }: { b: Binder; old?: Student }) {
         required={req("location")}
       />
       <CatalogField b={b} k="manager" kind="manager" />
-      <Select
-        b={b}
-        k="declaration"
-        items={declarations}
-        required={req("declaration")}
-      />
-      {b.v.declaration === "已有成绩" && (
-        <>
-          <Select b={b} k="jlpt" items={choices.jlpt} />
-          {["toefl", "ielts", "toeic"].map((k) => (
-            <Text type="number" key={k} b={b} k={k} />
-          ))}
-        </>
-      )}
+      <LanguageFields b={b} />
     </div>
   );
 }
-function studentPayload(v: Values) {
-  return v.declaration === "暂无语言成绩"
-    ? { ...v, jlpt: "", toefl: "", ielts: "", toeic: "" }
-    : v;
-}
-export function StudentEditor({ old, field }: { old?: Student; field?: "name" }) {
+export function StudentEditor({ old, field, onDismiss }: {
+  old?: Student; field?: "name" | "language"; onDismiss?: () => void;
+}) {
   const b = useValues(old || emptyStudent),
     { go } = useSite();
-  const updates = changed(old, studentPayload(b.v), field ? [field] : Object.keys(emptyStudent));
+  const keys = field === "language" ? [...languageScoreKeys] : field ? [field] : Object.keys(emptyStudent);
+  const updates = changed(old, b.v, keys);
   return (
     <FormShell
       unchanged={!!field && !Object.keys(updates).length}
+      onDismiss={onDismiss}
       sources={
         old
           ? [{ path: "students/" + old.id, row: old, key: "expectedVersion" }]
@@ -106,6 +101,7 @@ export function StudentEditor({ old, field }: { old?: Student; field?: "name" })
       }}
     >
       {field === "name" && <Text b={b} k="name" required />}
+      {field === "language" && <LanguageFields b={b} />}
       {!field && <StudentFields b={b} old={old} />}
     </FormShell>
   );
@@ -298,7 +294,7 @@ export function ServiceEditor({
               "POST",
               {
                 studentId: mode.v.mode === "existing" ? mode.v.studentId : "",
-                student: studentPayload(st.v),
+                student: st.v,
                 service: values,
                 phase: mode.v.phase,
                 reason: mode.v.reason,

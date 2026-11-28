@@ -113,17 +113,26 @@ export interface Student extends Row {
   toeic: string;
   missing?: string[];
 }
-type LanguageResults = Partial<Record<"jlpt" | "toefl" | "ielts" | "toeic", unknown>>;
-export function isExamScore(value: unknown) {
+export const englishExams = ["toefl", "ielts", "toeic"] as const;
+export const languageScoreKeys = ["jlpt", ...englishExams] as const;
+type LanguageResults = Partial<Record<(typeof languageScoreKeys)[number], unknown>>;
+export function isExamScore(value: unknown): value is string {
   return typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value.trim()) && Number.isFinite(Number(value));
 }
-export function hasLanguageScore({ jlpt, toefl, ielts, toeic }: LanguageResults) {
-  return (typeof jlpt === "string" && /^N[1-5]合格$/.test(jlpt.trim())) ||
-    [toefl, ielts, toeic].some(isExamScore);
+function isJlptGrade(value: unknown): value is string {
+  return typeof value === "string" && /^N[1-5]合格$/.test(value.trim());
 }
-export function languageStatus(student: LanguageResults & { declaration: string }) {
-  if (hasLanguageScore(student)) return "已有成绩";
-  return student.declaration === "已有成绩" ? "成绩明细待补" : student.declaration;
+export function hasLanguageScore(scores: LanguageResults) {
+  return isJlptGrade(scores.jlpt) || englishExams.some((exam) => isExamScore(scores[exam]));
+}
+export function languageStatus(scores: LanguageResults) {
+  const japanese = isJlptGrade(scores.jlpt) ? "JLPT " + scores.jlpt.trim() : "";
+  const english = englishExams.flatMap((exam) => {
+    const score = scores[exam];
+    return isExamScore(score) ? [labels[exam] + " " + score.trim()] : [];
+  });
+  if (english.length) return [japanese || "无日语成绩", ...english].join("，");
+  return japanese ? "无英语成绩，" + japanese : "暂无语言成绩";
 }
 export interface Pause {
   from: Phase | "";

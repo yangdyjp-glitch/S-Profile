@@ -34,6 +34,7 @@ import {
   stamp,
   string,
   strings,
+  syncStudentLanguage,
   updateExceptions,
   validateApplication,
   validateService,
@@ -215,6 +216,7 @@ export async function business(
       ...fields(emptyStudent, input, old ?? undefined),
     } as Student;
     updateExceptions(s, input);
+    syncStudentLanguage(s, old ? input : undefined);
     validateStudent(s, list, old ?? undefined);
     sql = record(
       db,
@@ -244,6 +246,7 @@ export async function business(
         ...meta(id("ST")),
         ...fields(emptyStudent, object(input.student)),
       };
+      syncStudentLanguage(st);
       validateStudent(st, list);
       sql.push(
         ...record(db, "students", null, st, actor, "建立学生档案", st.id),

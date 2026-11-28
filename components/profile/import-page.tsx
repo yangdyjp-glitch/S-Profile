@@ -23,6 +23,7 @@ import {
   type Values,
 } from "./ui";
 import { PageHead, PageNav } from "./workbench";
+import { LanguageFields } from "./editors";
 const states: Record<string, string> = {
   pending: "待核对",
   linked: "已关联",
@@ -237,11 +238,7 @@ function ResolveForm({ row, done }: { row: Source; done: () => void }) {
                     "orderMonth",
                     "location",
                     "manager",
-                    "declaration",
-                    "jlpt",
-                    "toefl",
-                    "ielts",
-                    "toeic",
+                    "language",
                     "channel",
                     "teacher",
                     "projects",
@@ -258,7 +255,7 @@ function ResolveForm({ row, done }: { row: Source; done: () => void }) {
                     "notes",
                     "pauseReason",
                   ].map((k) =>
-                    Object.hasOwn(choices, k) ? (
+                    k === "language" ? <LanguageFields key={k} b={p} /> : Object.hasOwn(choices, k) ? (
                       <Select
                         key={k}
                         b={p}

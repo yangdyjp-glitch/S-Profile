@@ -5,7 +5,6 @@ import {
   emptyService,
   emptyStudent,
   entryKinds,
-  hasLanguageScore,
   phases,
   type Account,
   type Application,
@@ -38,6 +37,7 @@ import {
   Problem,
   stamp,
   string,
+  syncStudentLanguage,
   updateExceptions,
   validateApplication,
   validateService,
@@ -318,12 +318,13 @@ export async function resolve(
       for (const k of Object.keys(
         emptyStudent,
       ) as (keyof typeof emptyStudent)[]) {
-        if (k !== "name" && !prior[k] && p[k])
+        if (k !== "name" && k !== "declaration" && !prior[k] && p[k])
           patch[k] = k === "manager" ? mapped("manager", p[k]) : p[k];
       }
       if (Object.keys(patch).length) {
         st = { ...bump(prior), ...fields(emptyStudent, patch, prior) };
         updateExceptions(st, patch);
+        syncStudentLanguage(st, patch);
         validateStudent(st, list, prior);
         sql.push(
           ...record(
@@ -344,9 +345,8 @@ export async function resolve(
       ...fields(emptyStudent, p as unknown as Input),
       manager: mapped("manager", string(p.manager)),
     };
-    st.missing = missingKeys(st, ["orderMonth", "location", "declaration"]);
-    if (st.declaration === "已有成绩" && !hasLanguageScore(st))
-      st.missing.push("scores");
+    st.missing = missingKeys(st, ["orderMonth", "location"]);
+    syncStudentLanguage(st);
     validateStudent(st, list);
     sql.push(
       ...record(

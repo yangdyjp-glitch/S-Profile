@@ -2,16 +2,16 @@
 import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import {
-  catalogOptionLabel, choices, hasLaterTargets, intakeLabel, labelOf, requiresActiveStatus,
+  catalogOptionLabel, choices, hasLaterTargets, intakeLabel, labelOf, languageStatus, requiresActiveStatus,
   type Row, type Service, type Student,
 } from "../../lib/profile/model";
-import { ActionEditor, ServiceEditor } from "./editors";
+import { ActionEditor, ServiceEditor, StudentEditor } from "./editors";
 import { ProjectNames } from "./project-names";
 import { ApiError, trackFieldAnchor, useSite, type Fact, type FieldAnchor } from "./ui";
 
 type ServiceField = "major" | "projects" | "original" | "targets" | "channel" | "teacher"
   | "status" | "collection" | "production" | "progress" | "risk" | "publication";
-type Source = { student: Student; field: "location" | "manager" } | { service: Service; field: ServiceField };
+type Source = { student: Student; field: "location" | "manager" | "language" } | { service: Service; field: ServiceField };
 type EditContent = (dismiss: () => void) => ReactNode;
 type Editor = { anchor: FieldAnchor; label: string; content: EditContent; scope: string; sequence: number };
 
@@ -79,24 +79,31 @@ export function DetailValue(props: Source & { label: string; describedBy?: strin
   const { field, label } = props;
   const service = "service" in props ? props.service : undefined;
   const row = "service" in props ? props.service : props.student;
-  const stored = "service" in props ? props.service[props.field] : props.student[props.field];
   const id = detailControlId(row, field);
   const expanded = panel.activeId === id;
 
+  function editButton(content: ReactNode, editor: EditContent) {
+    return <button id={id} type="button" className="detail-field-value" aria-label={label}
+      aria-description={typeof content === "string" ? content : undefined}
+      aria-describedby={props.describedBy} aria-expanded={expanded} aria-controls={expanded ? id + "-editor" : undefined}
+      onClick={(event) => expanded ? panel.dismiss() : panel.open(event.currentTarget, label, editor)}>
+      {content}
+    </button>;
+  }
+  if (props.field === "language") {
+    return editButton(languageStatus(props.student),
+      (dismiss) => <StudentEditor old={props.student} field="language" onDismiss={dismiss} />);
+  }
   if (service && (field === "major" || field === "projects" || field === "original" || field === "targets")) {
     let content: ReactNode = service.major || "待补";
     if (field === "projects") content = <ProjectNames names={service.projects.map((p) => labelOf(w.catalogs, p))} fallback="合同项目待补" />;
     if (field === "original" || field === "targets") content = service[field].length
       ? service[field].map((month, index) => <span key={month} className="intake-month">{index > 0 && "、"}{intakeLabel(month)}</span>)
       : "待补";
-    return <button id={id} type="button" className="detail-field-value" aria-label={label}
-      aria-describedby={props.describedBy} aria-expanded={expanded} aria-controls={expanded ? id + "-editor" : undefined}
-      onClick={(event) => expanded ? panel.dismiss() : panel.open(event.currentTarget, label,
-        (dismiss) => <ServiceEditor old={service} field={field} onDismiss={dismiss} />)}>
-      {content}
-    </button>;
+    return editButton(content, (dismiss) => <ServiceEditor old={service} field={field} onDismiss={dismiss} />);
   }
 
+  const stored = "service" in props ? props.service[props.field] : props.student[props.field];
   const saved = typeof stored === "string" ? stored : "";
   const value = pending ?? saved;
   const optional = field === "manager" || field === "teacher" || !!row.missing?.includes(field);

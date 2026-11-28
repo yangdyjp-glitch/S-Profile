@@ -740,7 +740,7 @@ export function Students({ q, search, page, setPage }: {
                     "学生姓名",
                     "首次签单",
                     "所在地",
-                    "语言成绩",
+                    "语言情况",
                     "学管",
                     "服务数",
                   ].map((k) => (
@@ -762,7 +762,7 @@ export function Students({ q, search, page, setPage }: {
                     </td>
                     <td>{s.orderMonth || "待补"}</td>
                     <td>{s.location || "待补"}</td>
-                    <td>{languageStatus(s) || "资料待补"}</td>
+                    <td>{languageStatus(s)}</td>
                     <td>{labelOf(w.catalogs, s.manager, "学管待分配")}</td>
                     <td>
                       {serviceCounts.get(s.id) || 0}

@@ -1,4 +1,7 @@
-import { choices, currentClosure, hasLanguageScore, hasLaterTargets, identity, isExamScore, labels, requiresActiveStatus } from "./model";
+import {
+  choices, currentClosure, englishExams, hasLanguageScore, hasLaterTargets,
+  identity, isExamScore, labels, languageScoreKeys, requiresActiveStatus,
+} from "./model";
 import type { Application, Catalog, Service, Student } from "./model";
 export class Problem extends Error {
   constructor(
@@ -62,6 +65,13 @@ export function reference(
   )
     fail(field, "请从" + labels[field] + "名册选择有效项目");
 }
+export function syncStudentLanguage(student: Student, patch?: Record<string, unknown>) {
+  if (patch && !languageScoreKeys.some((key) => Object.hasOwn(patch, key))) return;
+  student.declaration = hasLanguageScore(student) ? "已有成绩" : "暂无语言成绩";
+  if (student.missing) {
+    student.missing = student.missing.filter((key) => key !== "declaration" && key !== "scores");
+  }
+}
 export function validateStudent(s: Student, list: Catalog[], old?: Student) {
   required(s, ["name", "orderMonth", "location", "declaration"], s.missing);
   if (!identity(s.name)) fail("name", "姓名需包含星号和空格以外的文字");
@@ -71,7 +81,7 @@ export function validateStudent(s: Student, list: Catalog[], old?: Student) {
   option("declaration", s.declaration);
   option("jlpt", s.jlpt);
   reference(list, "manager", s.manager, "manager", old?.manager);
-  for (const k of ["toefl", "ielts", "toeic"] as const)
+  for (const k of englishExams)
     if (s[k] && !isExamScore(s[k]))
       fail(k, labels[k] + "应为非负数值");
   const has = hasLanguageScore(s);

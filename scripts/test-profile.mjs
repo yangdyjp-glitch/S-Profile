@@ -91,11 +91,13 @@ async function call(path, method = "GET", data, opts = {}) {
   return value;
 }
 async function run() {
-  assert.equal(languageStatus({ declaration: "", jlpt: "暂无日语成绩" }), "");
-  assert.equal(languageStatus({ declaration: "已有成绩", jlpt: "暂无日语成绩" }), "成绩明细待补");
-  for (const result of [{ jlpt: "N2合格" }, { toefl: "0" }, { ielts: "6.5" }, { toeic: "820" }]) {
-    assert.equal(languageStatus({ declaration: "已有成绩", ...result }), "已有成绩");
-  }
+  assert.equal(languageStatus({ declaration: "", jlpt: "暂无日语成绩" }), "暂无语言成绩");
+  assert.equal(languageStatus({ declaration: "已有成绩", missing: ["scores"] }), "暂无语言成绩");
+  assert.equal(languageStatus({ jlpt: "N2合格" }), "无英语成绩，JLPT N2合格");
+  assert.equal(languageStatus({ jlpt: "暂无日语成绩", ielts: "6.5" }), "无日语成绩，雅思 6.5");
+  assert.equal(languageStatus({ toefl: "0", toeic: "820" }), "无日语成绩，托福 0，托业 820");
+  assert.equal(languageStatus({ jlpt: "N1合格", toefl: "90", ielts: "7", toeic: "910" }),
+    "JLPT N1合格，托福 90，雅思 7，托业 910");
   for (const label of ["09.29：", "9/29 ", "９．２９：", "2026年9月29日：", "09.29. "]) {
     assert.equal(withoutRepeatedEntryDate(label + "约在10.03跟进（程）", "2026-09-29"), "约在10.03跟进（程）");
   }
@@ -198,7 +200,6 @@ async function run() {
     orderMonth: "2025-11",
     manager: cat("manager"),
     location: "中国",
-    declaration: "暂无语言成绩",
   };
   const service = {
     channel: cat("channel"),
@@ -220,6 +221,7 @@ async function run() {
   const replay = await call("services", "POST", payload, { key, headers: syncHeaders(initial.cursor) });
   assert.equal(replay.workspace.full, false);
   assert.equal(replay.workspace.data.students[0].id, created.studentId);
+  assert.equal(replay.workspace.data.students[0].declaration, "暂无语言成绩");
   assert.equal(replay.workspace.data.services[0].id, created.serviceId);
   await call("services", "POST", { ...payload, reason: "变更请求" }, { key, status: 409 });
   const sid = created.studentId,
@@ -479,8 +481,8 @@ async function run() {
   assert.ok(confirm.studentId);
   const languagePath = "students/" + confirm.studentId;
   const reported = await call(languagePath);
-  assert.ok(reported.missing.includes("scores"));
-  assert.equal(languageStatus(reported), "成绩明细待补");
+  assert.equal(reported.declaration, "暂无语言成绩");
+  assert.ok(!reported.missing.includes("scores"));
   const revisit = await call("imports/" + batch.id + "/review/" + raw.id);
   assert.equal(revisit.state, "linked");
 
@@ -527,8 +529,12 @@ async function run() {
     rowId: remaining.id,
     mode: "existing",
     studentId: confirm.studentId,
-    proposal: { schools: [{ name: "合大", project: liveProject.name, submitted: true }] },
+    fillMissing: true,
+    proposal: { ielts: "6.5", schools: [{ name: "合大", project: liveProject.name, submitted: true }] },
   }, { cookie: adminCookie });
+  const englishOnly = await call(languagePath);
+  assert.equal(englishOnly.declaration, "已有成绩");
+  assert.equal(languageStatus(englishOnly), "无日语成绩，雅思 6.5");
   assert.equal((await call("services/" + imported.serviceId + "/applications"))[0].school, replacement.id);
   const later = await call("workspace?since=" + replay.workspace.cursor);
   const merged = mergeWorkspace(mergeWorkspace(initial.data, replay.workspace), later);
@@ -605,7 +611,7 @@ async function run() {
     const output = await renderReport(exp);
     const archives = output.getWorksheet("学生档案").getSheetValues();
     const languageCol = archives[1].indexOf("语言声明");
-    assert.equal(archives.find((row) => row?.[1] === "跨表同名")[languageCol], "成绩明细待补");
+    assert.equal(archives.find((row) => row?.[1] === "跨表同名")[languageCol], "无日语成绩，雅思 6.5");
     assert.equal(archives.find((row) => row?.[1] === "独立历史档案")[languageCol], "暂无语言成绩");
     const filteredReport = await renderReport(filtered);
     assert.equal(filteredReport.getWorksheet("当前筛选").getCell("B2").text, "验收新姓名");
@@ -650,9 +656,17 @@ async function run() {
   } finally {
     await worker.terminate();
   }
-  await call(languagePath, "PATCH", { expectedVersion: reported.version, declaration: "暂无语言成绩" });
+  await call(languagePath, "PATCH", { expectedVersion: englishOnly.version, jlpt: "N2合格" });
+  const bilingual = await call(languagePath);
+  assert.equal(languageStatus(bilingual), "JLPT N2合格，雅思 6.5");
+  await call(languagePath, "PATCH", { expectedVersion: englishOnly.version, ielts: "" }, { status: 409 });
+  await call(languagePath, "PATCH", { expectedVersion: bilingual.version, ielts: "" });
+  const japaneseOnly = await call(languagePath);
+  assert.equal(languageStatus(japaneseOnly), "无英语成绩，JLPT N2合格");
+  await call(languagePath, "PATCH", { expectedVersion: japaneseOnly.version, jlpt: "" });
   const noScores = await call(languagePath);
   assert.equal(languageStatus(noScores), "暂无语言成绩");
+  assert.equal(noScores.declaration, "暂无语言成绩");
   assert.ok(!noScores.missing.includes("scores"));
   await call(languagePath, "PATCH", { expectedVersion: noScores.version, declaration: "已有成绩" }, { status: 422 });
   const oldChannel = deletedItems.find((c) => c.kind === "channel");

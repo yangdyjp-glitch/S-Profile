@@ -12,7 +12,6 @@ import {
   currentClosure,
   labelOf,
   labels,
-  languageStatus,
   newestEntries,
   orderedApps,
   phases,
@@ -553,17 +552,8 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
             </ul>
           ) : "待补", s ? detailControlId(s, "major") : undefined],
           ["历次服务", choices.length + " 份"],
-          ["语言情况", languageStatus(st) || "历史待补"],
+          editableFact("语言情况", { student: st, field: "language" }),
         ]} />
-        <details>
-          <summary>语言成绩</summary>
-          <Facts values={[
-            ["JLPT", st.jlpt || "未填写"],
-            ["托福", st.toefl || "未填写"],
-            ["雅思", st.ielts || "未填写"],
-            ["托业", st.toeic || "未填写"],
-          ]} />
-        </details>
       </section>
       <section className="detail-summary" aria-label="当前服务">
         <div className="current-service-heading">
