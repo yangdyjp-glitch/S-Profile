@@ -7,6 +7,7 @@ import { Worker } from "node:worker_threads";
 import ExcelJS from "exceljs";
 import { Miniflare } from "miniflare";
 import { mergeWorkspace } from "../lib/profile/sync.ts";
+import { languageStatus } from "../lib/profile/model.ts";
 import { cleanStoredEntry, withoutRepeatedEntryDate } from "../lib/profile/entry-text.mjs";
 
 async function createSitesRuntime() {
@@ -84,6 +85,11 @@ async function call(path, method = "GET", data, opts = {}) {
   return value;
 }
 async function run() {
+  assert.equal(languageStatus({ declaration: "", jlpt: "暂无日语成绩" }), "");
+  assert.equal(languageStatus({ declaration: "已有成绩", jlpt: "暂无日语成绩" }), "成绩明细待补");
+  for (const result of [{ jlpt: "N2合格" }, { toefl: "0" }, { ielts: "6.5" }, { toeic: "820" }]) {
+    assert.equal(languageStatus({ declaration: "已有成绩", ...result }), "已有成绩");
+  }
   for (const label of ["09.29：", "9/29 ", "９．２９：", "2026年9月29日：", "09.29. "]) {
     assert.equal(withoutRepeatedEntryDate(label + "约在10.03跟进（程）", "2026-09-29"), "约在10.03跟进（程）");
   }
@@ -391,12 +397,15 @@ async function run() {
     formulae: ['"选项一,选项二"'],
   });
   sheet.getCell("C1").value = "签单时间";
+  sheet.getCell("G1").value = "掌握语言";
   sheet.getCell("R1").value = "2024-04";
   sheet.getCell("S1").value = "4月";
   sheet.getCell("A2").value = "独立历史档案";
   sheet.getCell("C2").value = "2024-04";
+  sheet.getCell("G2").value = "无日无英";
   sheet.getCell("R2").value = "04.15：早期进度（程）\n第二行补充\n04.16: 5月底前补材料";
   sheet.getCell("A3").value = "跨表同名";
+  sheet.getCell("G3").value = "日英都有";
   sheet.getCell("S3").value = "04.18：缺年份\n04.19：仍待确认";
   sheet.getCell("R3").value = "05.18：与列头月份冲突";
   sheet.getRow(3).hidden = true;
@@ -444,14 +453,21 @@ async function run() {
         .id,
   );
   assert.ok(raw.raw.hidden);
+  assert.equal(raw.proposal.declaration, "");
+  assert.ok(raw.issues.some((issue) => issue.includes("语言成绩")));
   assert.equal(raw.proposal.entries[0].precision, "unknown");
   assert.deepEqual(raw.proposal.entries.map(({ date, body }) => [date, body]),
     [["", "05.18：与列头月份冲突"], ["", "04.18：缺年份\n04.19：仍待确认"]]);
   const confirm = await call("imports/" + batch.id + "/resolve", "POST", {
     mode: "new",
     rowId: raw.id,
+    proposal: { declaration: "已有成绩" },
   });
   assert.ok(confirm.studentId);
+  const languagePath = "students/" + confirm.studentId;
+  const reported = await call(languagePath);
+  assert.ok(reported.missing.includes("scores"));
+  assert.equal(languageStatus(reported), "成绩明细待补");
   const revisit = await call("imports/" + batch.id + "/review/" + raw.id);
   assert.equal(revisit.state, "linked");
 
@@ -574,6 +590,10 @@ async function run() {
       return book;
     }
     const output = await renderReport(exp);
+    const archives = output.getWorksheet("学生档案").getSheetValues();
+    const languageCol = archives[1].indexOf("语言声明");
+    assert.equal(archives.find((row) => row?.[1] === "跨表同名")[languageCol], "成绩明细待补");
+    assert.equal(archives.find((row) => row?.[1] === "独立历史档案")[languageCol], "暂无语言成绩");
     const filteredReport = await renderReport(filtered);
     assert.equal(filteredReport.getWorksheet("当前筛选").getCell("B2").text, "验收新姓名");
     const roster = output.getWorksheet("业务名册").getSheetValues();
@@ -617,6 +637,11 @@ async function run() {
   } finally {
     await worker.terminate();
   }
+  await call(languagePath, "PATCH", { expectedVersion: reported.version, declaration: "暂无语言成绩" });
+  const noScores = await call(languagePath);
+  assert.equal(languageStatus(noScores), "暂无语言成绩");
+  assert.ok(!noScores.missing.includes("scores"));
+  await call(languagePath, "PATCH", { expectedVersion: noScores.version, declaration: "已有成绩" }, { status: 422 });
   const oldChannel = deletedItems.find((c) => c.kind === "channel");
   const deletedNameBook = new ExcelJS.Workbook();
   deletedNameBook.addWorksheet("进行中").addRows([

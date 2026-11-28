@@ -1,4 +1,4 @@
-import { choices, currentClosure, identity, labels, requiresActiveStatus } from "./model";
+import { choices, currentClosure, hasLanguageScore, identity, isExamScore, labels, requiresActiveStatus } from "./model";
 import type { Application, Catalog, Service, Student } from "./model";
 export class Problem extends Error {
   constructor(
@@ -71,16 +71,14 @@ export function validateStudent(s: Student, list: Catalog[], old?: Student) {
   option("declaration", s.declaration);
   option("jlpt", s.jlpt);
   reference(list, "manager", s.manager, "manager", old?.manager);
-  const has =
-    [s.toefl, s.ielts, s.toeic].some(Boolean) ||
-    !!(s.jlpt && s.jlpt !== "暂无日语成绩");
+  for (const k of ["toefl", "ielts", "toeic"] as const)
+    if (s[k] && !isExamScore(s[k]))
+      fail(k, labels[k] + "应为非负数值");
+  const has = hasLanguageScore(s);
   if (s.declaration === "已有成绩" && !has && !s.missing?.includes("scores"))
     fail("declaration", "请填写至少一项已取得的考试成绩");
   if (s.declaration === "暂无语言成绩" && has)
     fail("declaration", "已填写考试结果，请选择已有成绩");
-  for (const k of ["toefl", "ielts", "toeic"] as const)
-    if (s[k] && (!/^\d+(\.\d+)?$/.test(s[k]) || !Number.isFinite(Number(s[k]))))
-      fail(k, labels[k] + "应为非负数值");
 }
 export function validateService(
   s: Service,
@@ -217,9 +215,7 @@ export function updateExceptions<T extends { missing?: string[] }>(
   );
   if (
     row.missing.includes("scores") &&
-    ["jlpt", "toefl", "ielts", "toeic"].some(
-      (k) => Object.hasOwn(input, k) && input[k] && input[k] !== "暂无日语成绩",
-    )
+    (string(input.declaration) === "暂无语言成绩" || hasLanguageScore(input))
   )
     row.missing = row.missing.filter((k) => k !== "scores");
 }

@@ -22,6 +22,7 @@ import {
   compareNewestEntry,
   currentClosure,
   labelOf,
+  languageStatus,
   phases,
   tokyoDay,
   type Application,
@@ -761,7 +762,7 @@ export function Students({ q, search, page, setPage }: {
                     </td>
                     <td>{s.orderMonth || "待补"}</td>
                     <td>{s.location || "待补"}</td>
-                    <td>{s.declaration || "资料待补"}</td>
+                    <td>{languageStatus(s) || "资料待补"}</td>
                     <td>{labelOf(w.catalogs, s.manager, "学管待分配")}</td>
                     <td>
                       {serviceCounts.get(s.id) || 0}

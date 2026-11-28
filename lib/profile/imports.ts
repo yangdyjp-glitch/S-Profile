@@ -5,6 +5,7 @@ import {
   emptyService,
   emptyStudent,
   entryKinds,
+  hasLanguageScore,
   phases,
   type Account,
   type Application,
@@ -344,11 +345,7 @@ export async function resolve(
       manager: mapped("manager", string(p.manager)),
     };
     st.missing = missingKeys(st, ["orderMonth", "location", "declaration"]);
-    if (
-      st.declaration === "已有成绩" &&
-      ![st.toefl, st.ielts, st.toeic].some(Boolean) &&
-      !/^N[1-5]/.test(st.jlpt)
-    )
+    if (st.declaration === "已有成绩" && !hasLanguageScore(st))
       st.missing.push("scores");
     validateStudent(st, list);
     sql.push(

@@ -8,7 +8,9 @@ import {
   emptyApplication,
   emptyService,
   emptyStudent,
+  hasLanguageScore,
   labels,
+  languageStatus,
   passwordLength,
   phases,
   roles,
@@ -39,6 +41,10 @@ import {
 } from "./ui";
 function StudentFields({ b, old }: { b: Binder; old?: Student }) {
   const req = (k: string) => !old?.missing?.includes(k);
+  const pendingScores = old && languageStatus(old) === "成绩明细待补" && !hasLanguageScore(b.v);
+  const declarations = pendingScores
+    ? choices.declaration.map((value) => [value, value === "已有成绩" ? "成绩明细待补" : value] as const)
+    : choices.declaration;
   return (
     <div className="form-grid">
       <Text b={b} k="name" required />
@@ -53,7 +59,7 @@ function StudentFields({ b, old }: { b: Binder; old?: Student }) {
       <Select
         b={b}
         k="declaration"
-        items={choices.declaration}
+        items={declarations}
         required={req("declaration")}
       />
       {b.v.declaration === "已有成绩" && (

@@ -1,7 +1,7 @@
 import ExcelJS from "exceljs/dist/exceljs.min.js";
 import type { Cell, Worksheet } from "exceljs";
 import * as SSF from "ssf";
-import { choices, identity, initialCatalogs, type Phase } from "./model";
+import { choices, hasLanguageScore, identity, initialCatalogs, type Phase } from "./model";
 import { day, intake, month } from "./validation";
 import { dateOfEntryLabel, entryDateLabel, withoutRepeatedEntryDate } from "./entry-text.mjs";
 import type {
@@ -108,7 +108,7 @@ function propose(
     );
   const rawLanguage = by(/掌握语言|语言成绩|^语言$/),
     matchJL = rawLanguage.match(/N[1-5]/i);
-  const declaration = /暂无语言成绩|无语言成绩/.test(rawLanguage)
+  const declaration = /暂无语言成绩|无语言成绩|^无日无英$/.test(rawLanguage)
     ? "暂无语言成绩"
     : "";
   const languages = {
@@ -123,7 +123,7 @@ function propose(
     ["toeic", /(?:托业|TOEIC)[^0-9]{0,5}(\d+(?:\.\d+)?)/i],
   ] as const)
     languages[key] = rawLanguage.match(re)?.[1] || "";
-  const has = Object.values(languages).some(Boolean);
+  const has = hasLanguageScore(languages);
   if (rawLanguage && !has && !declaration)
     issues.push("语言成绩类型或结果待核");
   const rawLocation = by(/所在地|居住地/);

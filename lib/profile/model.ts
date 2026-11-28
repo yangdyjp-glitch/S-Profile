@@ -113,6 +113,18 @@ export interface Student extends Row {
   toeic: string;
   missing?: string[];
 }
+type LanguageResults = Partial<Record<"jlpt" | "toefl" | "ielts" | "toeic", unknown>>;
+export function isExamScore(value: unknown) {
+  return typeof value === "string" && /^\d+(?:\.\d+)?$/.test(value.trim()) && Number.isFinite(Number(value));
+}
+export function hasLanguageScore({ jlpt, toefl, ielts, toeic }: LanguageResults) {
+  return (typeof jlpt === "string" && /^N[1-5]合格$/.test(jlpt.trim())) ||
+    [toefl, ielts, toeic].some(isExamScore);
+}
+export function languageStatus(student: LanguageResults & { declaration: string }) {
+  if (hasLanguageScore(student)) return "已有成绩";
+  return student.declaration === "已有成绩" ? "成绩明细待补" : student.declaration;
+}
 export interface Pause {
   from: Phase | "";
   status: string;
@@ -296,6 +308,7 @@ export const labels: Record<string, string> = {
   manager: "学管",
   location: "所在地",
   declaration: "语言成绩",
+  scores: "语言成绩明细",
   jlpt: "JLPT",
   toefl: "托福",
   ielts: "雅思",

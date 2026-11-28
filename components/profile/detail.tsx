@@ -12,6 +12,7 @@ import {
   currentClosure,
   labelOf,
   labels,
+  languageStatus,
   newestEntries,
   orderedApps,
   phases,
@@ -555,7 +556,7 @@ export function StudentDetail({ id, serviceId, legacy }: { id: string; serviceId
             </ul>
           ) : "待补"],
           ["历次服务", choices.length + " 份"],
-          ["语言情况", st.declaration || "历史待补"],
+          ["语言情况", languageStatus(st) || "历史待补"],
         ]} />
         <details>
           <summary>语言成绩</summary>
