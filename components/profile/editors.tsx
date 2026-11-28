@@ -369,7 +369,7 @@ export function ServiceEditor({
             <summary>学生资料</summary>
             <StudentFields b={st} old={profile.student} />
           </details>
-          <details className="profile-edit-section" onInvalidCapture={revealInvalidSection}>
+          <details className="profile-edit-section" open onInvalidCapture={revealInvalidSection}>
             <summary>服务进度{profile.serviceLabel && <small>{profile.serviceLabel}</small>}</summary>
             {serviceFields}
           </details>
